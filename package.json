@@ -1,0 +1,16 @@
+{
+  "name": "luckysheet3",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Luckysheet Vue 3 rewrite — Path A MVP",
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "dev": "pnpm --filter @luckysheet3/playground dev",
+    "build": "pnpm -r --filter=./packages/* build",
+    "test": "pnpm --filter @luckysheet3/core test",
+    "typecheck": "pnpm -r --filter=./packages/* typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

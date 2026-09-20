@@ -1,0 +1,83 @@
+{
+  "name": "CellMini",
+  "index": 0,
+  "order": 0,
+  "status": 1,
+  "row": 20,
+  "column": 10,
+  "config": {
+    "merge": {
+      "2_1": { "r": 2, "c": 1, "rs": 2, "cs": 2 }
+    },
+    "rowlen": { "0": 24 },
+    "columnlen": { "0": 100 }
+  },
+  "celldata": [
+    {
+      "r": 0,
+      "c": 0,
+      "v": {
+        "v": 1,
+        "m": "1",
+        "ct": { "fa": "General", "t": "n" },
+        "bg": null,
+        "bl": 0,
+        "it": 0,
+        "fs": 11,
+        "fc": "rgb(51, 51, 51)",
+        "ht": 1,
+        "vt": 1
+      }
+    },
+    {
+      "r": 1,
+      "c": 0,
+      "v": {
+        "v": 2,
+        "m": "2",
+        "ct": { "fa": "General", "t": "n" }
+      }
+    },
+    {
+      "r": 2,
+      "c": 0,
+      "v": {
+        "v": 3,
+        "m": "3",
+        "ct": { "fa": "General", "t": "n" }
+      }
+    },
+    {
+      "r": 3,
+      "c": 0,
+      "v": {
+        "f": "=SUM(A1:A3)",
+        "v": 6,
+        "m": "6",
+        "ct": { "fa": "General", "t": "n" }
+      }
+    },
+    {
+      "r": 0,
+      "c": 1,
+      "v": {
+        "v": "Hello",
+        "m": "Hello",
+        "ct": { "fa": "General", "t": "g" },
+        "bl": 1
+      }
+    },
+    {
+      "r": 2,
+      "c": 1,
+      "v": {
+        "v": "Merged",
+        "m": "Merged",
+        "ct": { "fa": "General", "t": "g" },
+        "bg": "#fff2cc"
+      }
+    }
+  ],
+  "color": "",
+  "zoomRatio": 1
+}
