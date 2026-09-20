@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import type { WorkbookEngine } from "@luckysheet3/core";
+import type { SelectionRange, WorkbookEngine } from "@luckysheet3/core";
 
 const props = defineProps<{
   engine: WorkbookEngine;
@@ -8,7 +8,13 @@ const props = defineProps<{
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const wrapRef = ref<HTMLDivElement | null>(null);
+const pendingChar = ref<string | null>(null);
+
 let selecting = false;
+let filling = false;
+let fillFrom: SelectionRange | null = null;
+let resizing: { kind: "row" | "col"; index: number; start: number; size: number } | null =
+  null;
 let anchor = { row: 0, col: 0 };
 let resizeObs: ResizeObserver | null = null;
 
@@ -54,6 +60,43 @@ function onPointerDown(e: PointerEvent) {
   if (props.engine.editing) return;
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   const { x, y } = localPos(e);
+
+  const rowEdge = props.engine.hitRowResize(x, y);
+  if (rowEdge != null) {
+    resizing = {
+      kind: "row",
+      index: rowEdge,
+      start: y,
+      size: props.engine.workbook.getActiveSheet().getRowHeight(rowEdge),
+    };
+    return;
+  }
+  const colEdge = props.engine.hitColResize(x, y);
+  if (colEdge != null) {
+    resizing = {
+      kind: "col",
+      index: colEdge,
+      start: x,
+      size: props.engine.workbook.getActiveSheet().getColWidth(colEdge),
+    };
+    return;
+  }
+
+  if (props.engine.getFillHandleAt(x, y)) {
+    const sel = props.engine.selection[0];
+    if (sel) {
+      fillFrom = {
+        row: [Math.min(sel.row[0], sel.row[1]), Math.max(sel.row[0], sel.row[1])],
+        column: [
+          Math.min(sel.column[0], sel.column[1]),
+          Math.max(sel.column[0], sel.column[1]),
+        ],
+      };
+      filling = true;
+    }
+    return;
+  }
+
   const hit = props.engine.hitTest(x, y);
   if (!hit) return;
   selecting = true;
@@ -66,8 +109,38 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
-  if (!selecting) return;
   const { x, y } = localPos(e);
+  if (resizing) {
+    if (resizing.kind === "row") {
+      props.engine.execute({
+        type: "setRowHeight",
+        row: resizing.index,
+        height: Math.max(4, resizing.size + (y - resizing.start)),
+      });
+    } else {
+      props.engine.execute({
+        type: "setColWidth",
+        col: resizing.index,
+        width: Math.max(4, resizing.size + (x - resizing.start)),
+      });
+    }
+    return;
+  }
+  if (filling && fillFrom) {
+    const hit = props.engine.hitTest(x, y);
+    if (!hit) return;
+    props.engine.execute({
+      type: "setSelection",
+      selection: [
+        {
+          row: [fillFrom.row[0], hit.row],
+          column: [fillFrom.column[0], hit.col],
+        },
+      ],
+    });
+    return;
+  }
+  if (!selecting) return;
   const hit = props.engine.hitTest(x, y);
   if (!hit) return;
   props.engine.execute({
@@ -82,7 +155,16 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp() {
+  if (filling && fillFrom) {
+    const sel = props.engine.selection[0];
+    if (sel) {
+      props.engine.execute({ type: "fillCells", from: fillFrom, to: sel });
+    }
+  }
   selecting = false;
+  filling = false;
+  fillFrom = null;
+  resizing = null;
 }
 
 function onDblClick() {
@@ -103,6 +185,22 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   }
   if (props.engine.editing) return;
+
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+    e.preventDefault();
+    props.engine.copySelection();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+    e.preventDefault();
+    props.engine.cutSelection();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+    e.preventDefault();
+    props.engine.pasteAtSelection();
+    return;
+  }
 
   const sel = props.engine.selection[0];
   if (!sel) return;
@@ -140,7 +238,6 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
     props.engine.startEdit(r, c);
-    // CellEditor will pick up; seed via a custom event on engine
     props.engine.workbook.emit({ type: "edit", editing: true, row: r, col: c });
     pendingChar.value = e.key;
     return;
@@ -154,7 +251,6 @@ function onKeyDown(e: KeyboardEvent) {
   });
 }
 
-const pendingChar = ref<string | null>(null);
 defineExpose({ pendingChar });
 </script>
 

@@ -22,7 +22,24 @@ export {
   colLeft,
   ROW_HEADER_WIDTH,
   COL_HEADER_HEIGHT,
+  getFillHandleRect,
+  hitRowResize,
+  hitColResize,
+  freezeBandSize,
 } from "./hit/location.js";
 export { cellKey, parseA1, toA1, colToLetter } from "./model/cell-key.js";
 export { displayValue, cloneCell } from "./model/cell.js";
+export type { CellBorder, BorderSide } from "./model/cell.js";
+export { findNext, collectColumnValues } from "./find/find-replace.js";
 export type { Command as EngineCommand } from "./command/types.js";
+export { applyBorders } from "./border/borders.js";
+export type { BorderMode } from "./border/borders.js";
+export {
+  FORMAT_PRESETS,
+  formatDisplay,
+  applyFormatToCell,
+  clearCellFormat,
+  presetById,
+  activeCellFormatId,
+} from "./format/number-format.js";
+export type { FormatPresetId, FormatPreset } from "./format/number-format.js";

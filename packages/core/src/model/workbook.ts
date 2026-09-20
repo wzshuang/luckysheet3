@@ -1,5 +1,6 @@
 import { Sheet, type SheetSnapshot } from "./sheet.js";
 import { type Cell, type CellData, cloneCell } from "./cell.js";
+import type { ClipboardPayload } from "../clipboard/clipboard.js";
 
 export type SelectionRange = {
   row: [number, number];
@@ -27,6 +28,8 @@ export type LuckyOp = {
   range?: { row: [number, number]; column: [number, number] };
 };
 
+import type { ClipboardPayload } from "../clipboard/clipboard.js";
+
 export class Workbook {
   sheets: Sheet[] = [];
   activeIndex: string | number = 0;
@@ -36,6 +39,7 @@ export class Workbook {
   editing = false;
   editRow = 0;
   editCol = 0;
+  clipboard: ClipboardPayload | null = null;
   private listeners = new Set<WorkbookListener>();
 
   constructor(sheets?: SheetSnapshot[]) {
@@ -129,6 +133,70 @@ export class Workbook {
     this.activeIndex = index;
     this.emit({ type: "sheet", activeIndex: index });
     this.emit({ type: "change", sheetIndex: index });
+  }
+
+  /** Next numeric-ish index */
+  private nextSheetIndex(): number {
+    let max = -1;
+    for (const s of this.sheets) {
+      const n = typeof s.index === "number" ? s.index : Number(s.index);
+      if (!Number.isNaN(n)) max = Math.max(max, n);
+    }
+    return max + 1;
+  }
+
+  addSheet(name?: string): string | number {
+    const index = this.nextSheetIndex();
+    const order =
+      this.sheets.reduce((m, s) => Math.max(m, s.order), -1) + 1;
+    const sheetName = name?.trim() || `Sheet${this.sheets.length + 1}`;
+    const sheet = new Sheet({
+      name: sheetName,
+      index,
+      order,
+      status: 0,
+    });
+    this.sheets.push(sheet);
+    this.switchSheet(index);
+    return index;
+  }
+
+  renameSheet(index: string | number, name: string): void {
+    const sheet = this.getSheetByIndex(index);
+    if (!sheet) throw new Error(`Sheet not found: ${index}`);
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("Sheet name empty");
+    sheet.name = trimmed;
+    this.emit({ type: "sheet", activeIndex: this.activeIndex });
+    this.emit({ type: "change", sheetIndex: index });
+  }
+
+  deleteSheet(index: string | number): void {
+    if (this.sheets.length <= 1) {
+      throw new Error("Cannot delete the last sheet");
+    }
+    const pos = this.sheets.findIndex((s) => s.index === index);
+    if (pos < 0) throw new Error(`Sheet not found: ${index}`);
+    const wasActive = this.activeIndex === index;
+    this.sheets.splice(pos, 1);
+    if (wasActive) {
+      const next = this.sheets[Math.min(pos, this.sheets.length - 1)];
+      this.switchSheet(next.index);
+    } else {
+      this.emit({ type: "sheet", activeIndex: this.activeIndex });
+      this.emit({ type: "change", sheetIndex: this.activeIndex });
+    }
+  }
+
+  /** Replace entire sheet list (for undo) */
+  restoreSheets(snapshots: SheetSnapshot[], activeIndex: string | number): void {
+    this.sheets = snapshots.map((s) => new Sheet(s));
+    this.activeIndex = activeIndex;
+    for (const s of this.sheets) {
+      s.status = s.index === activeIndex ? 1 : 0;
+    }
+    this.emit({ type: "sheet", activeIndex });
+    this.emit({ type: "change", sheetIndex: activeIndex });
   }
 
   setEditing(editing: boolean, row?: number, col?: number): void {

@@ -2,6 +2,20 @@
  * Cell value fields aligned with Luckysheet protocol.
  * Unknown fields from JSON live in `extras`.
  */
+export type BorderSide = {
+  /** 1 thin, 2 medium */
+  style: number;
+  color: string;
+};
+
+/** Per-cell border (Lucky-compatible `bd`) */
+export type CellBorder = {
+  t?: BorderSide;
+  b?: BorderSide;
+  l?: BorderSide;
+  r?: BorderSide;
+};
+
 export interface CellStyle {
   /** background */
   bg?: string | null;
@@ -19,6 +33,8 @@ export interface CellStyle {
   ht?: number;
   /** vertical align: 0 middle, 1 top, 2 bottom */
   vt?: number;
+  /** borders */
+  bd?: CellBorder | null;
 }
 
 export interface CellType {
@@ -48,6 +64,14 @@ export function cloneCell(cell: Cell): CellData | null {
   return {
     ...cell,
     ct: cell.ct ? { ...cell.ct } : cell.ct,
+    bd: cell.bd
+      ? {
+          t: cell.bd.t ? { ...cell.bd.t } : undefined,
+          b: cell.bd.b ? { ...cell.bd.b } : undefined,
+          l: cell.bd.l ? { ...cell.bd.l } : undefined,
+          r: cell.bd.r ? { ...cell.bd.r } : undefined,
+        }
+      : cell.bd,
     extras: cell.extras ? { ...cell.extras } : cell.extras,
   };
 }

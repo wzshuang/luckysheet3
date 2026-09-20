@@ -4,7 +4,7 @@ import { DEFAULT_COL_LEN, DEFAULT_ROW_LEN } from "../model/sheet.js";
 export const ROW_HEADER_WIDTH = 46;
 export const COL_HEADER_HEIGHT = 20;
 
-/** Cumulative Y positions: result[i] = bottom of row i */
+/** Cumulative Y positions: result[i] = bottom of row i (hidden rows contribute 0) */
 export function buildRowOffsets(sheet: Sheet, maxRows?: number): number[] {
   const n = maxRows ?? sheet.rowCount;
   const offsets: number[] = new Array(n);
@@ -27,7 +27,6 @@ export function buildColOffsets(sheet: Sheet, maxCols?: number): number[] {
   return offsets;
 }
 
-/** Binary search: first index where offsets[i] > value */
 export function searchOffset(offsets: number[], value: number): number {
   let lo = 0;
   let hi = offsets.length - 1;
@@ -61,6 +60,37 @@ export type CellRect = {
   col: number;
 };
 
+function freezeOf(sheet: Sheet): { row: number; col: number } {
+  return sheet.config.freeze ?? { row: 0, col: 0 };
+}
+
+/** Effective scroll for a cell given freeze panes */
+export function effectiveScroll(
+  sheet: Sheet,
+  row: number,
+  col: number,
+  scrollLeft: number,
+  scrollTop: number,
+): { left: number; top: number } {
+  const fr = freezeOf(sheet);
+  return {
+    left: col < fr.col ? 0 : scrollLeft,
+    top: row < fr.row ? 0 : scrollTop,
+  };
+}
+
+export function freezeBandSize(
+  sheet: Sheet,
+  rowOffsets: number[],
+  colOffsets: number[],
+): { height: number; width: number } {
+  const fr = freezeOf(sheet);
+  return {
+    height: fr.row > 0 ? rowTop(rowOffsets, fr.row) : 0,
+    width: fr.col > 0 ? colLeft(colOffsets, fr.col) : 0,
+  };
+}
+
 export function getCellRect(
   sheet: Sheet,
   row: number,
@@ -75,10 +105,11 @@ export function getCellRect(
   const c0 = merge?.c ?? col;
   const rs = merge?.rs ?? 1;
   const cs = merge?.cs ?? 1;
-  const x =
-    ROW_HEADER_WIDTH + colLeft(colOffsets, c0) - scrollLeft;
-  const y =
-    COL_HEADER_HEIGHT + rowTop(rowOffsets, r0) - scrollTop;
+  const fr = freezeOf(sheet);
+  const effLeft = c0 < fr.col ? 0 : scrollLeft;
+  const effTop = r0 < fr.row ? 0 : scrollTop;
+  const x = ROW_HEADER_WIDTH + colLeft(colOffsets, c0) - effLeft;
+  const y = COL_HEADER_HEIGHT + rowTop(rowOffsets, r0) - effTop;
   const right = colOffsets[c0 + cs - 1] ?? colLeft(colOffsets, c0) + DEFAULT_COL_LEN;
   const bottom = rowOffsets[r0 + rs - 1] ?? rowTop(rowOffsets, r0) + DEFAULT_ROW_LEN;
   const left = colLeft(colOffsets, c0);
@@ -93,7 +124,6 @@ export function getCellRect(
   };
 }
 
-/** Map viewport pixel (relative to grid content origin including headers) to cell */
 export function hitTest(
   sheet: Sheet,
   px: number,
@@ -104,19 +134,67 @@ export function hitTest(
   colOffsets: number[],
 ): { row: number; col: number } | null {
   if (px < ROW_HEADER_WIDTH || py < COL_HEADER_HEIGHT) return null;
-  const contentX = px - ROW_HEADER_WIDTH + scrollLeft;
-  const contentY = py - COL_HEADER_HEIGHT + scrollTop;
+  const band = freezeBandSize(sheet, rowOffsets, colOffsets);
+  const localX = px - ROW_HEADER_WIDTH;
+  const localY = py - COL_HEADER_HEIGHT;
+
+  const contentX = localX < band.width ? localX : localX + scrollLeft;
+  const contentY = localY < band.height ? localY : localY + scrollTop;
+
   const col = searchOffset(colOffsets, contentX);
   const row = searchOffset(rowOffsets, contentY);
   if (row >= sheet.rowCount || col >= sheet.colCount) {
     return {
-      row: Math.min(row, sheet.rowCount - 1),
-      col: Math.min(col, sheet.colCount - 1),
+      row: Math.min(row, Math.max(0, sheet.rowCount - 1)),
+      col: Math.min(col, Math.max(0, sheet.colCount - 1)),
     };
   }
+  if (sheet.hiddenRows.has(row)) return null;
   const merge = sheet.getMergeAt(row, col);
   if (merge) return { row: merge.r, col: merge.c };
   return { row, col };
+}
+
+/** Hit-test row header edge for resize (returns row index whose bottom edge is near) */
+export function hitRowResize(
+  sheet: Sheet,
+  px: number,
+  py: number,
+  scrollTop: number,
+  rowOffsets: number[],
+  threshold = 3,
+): number | null {
+  if (px > ROW_HEADER_WIDTH || py < COL_HEADER_HEIGHT) return null;
+  const fr = freezeOf(sheet);
+  for (let r = 0; r < sheet.rowCount; r++) {
+    if (sheet.hiddenRows.has(r)) continue;
+    const yEdge =
+      COL_HEADER_HEIGHT +
+      (rowOffsets[r] ?? 0) -
+      (r + 1 <= fr.row ? 0 : scrollTop);
+    if (Math.abs(py - yEdge) <= threshold) return r;
+  }
+  return null;
+}
+
+export function hitColResize(
+  sheet: Sheet,
+  px: number,
+  py: number,
+  scrollLeft: number,
+  colOffsets: number[],
+  threshold = 3,
+): number | null {
+  if (py > COL_HEADER_HEIGHT || px < ROW_HEADER_WIDTH) return null;
+  const fr = freezeOf(sheet);
+  for (let c = 0; c < sheet.colCount; c++) {
+    const xEdge =
+      ROW_HEADER_WIDTH +
+      (colOffsets[c] ?? 0) -
+      (c + 1 <= fr.col ? 0 : scrollLeft);
+    if (Math.abs(px - xEdge) <= threshold) return c;
+  }
+  return null;
 }
 
 export function contentSize(
@@ -126,5 +204,33 @@ export function contentSize(
   return {
     width: colOffsets[colOffsets.length - 1] ?? 0,
     height: rowOffsets[rowOffsets.length - 1] ?? 0,
+  };
+}
+
+/** Fill-handle rect (bottom-right of selection), or null */
+export function getFillHandleRect(
+  sheet: Sheet,
+  selection: { row: [number, number]; column: [number, number] },
+  rowOffsets: number[],
+  colOffsets: number[],
+  scrollLeft: number,
+  scrollTop: number,
+): { x: number; y: number; size: number } {
+  const r1 = Math.max(selection.row[0], selection.row[1]);
+  const c1 = Math.max(selection.column[0], selection.column[1]);
+  const rect = getCellRect(
+    sheet,
+    r1,
+    c1,
+    rowOffsets,
+    colOffsets,
+    scrollLeft,
+    scrollTop,
+  );
+  const size = 6;
+  return {
+    x: rect.x + rect.width - size / 2,
+    y: rect.y + rect.height - size / 2,
+    size,
   };
 }
