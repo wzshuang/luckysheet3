@@ -39,3 +39,17 @@ export function parseA1(ref: string): { row: number; col: number } {
 export function toA1(row: number, col: number): string {
   return `${colToLetter(col)}${row + 1}`;
 }
+
+/** Selection → "A1" or "A1:B3" (normalized top-left : bottom-right) */
+export function selectionToLabel(sel: {
+  row: [number, number];
+  column: [number, number];
+}): string {
+  const r0 = Math.min(sel.row[0], sel.row[1]);
+  const r1 = Math.max(sel.row[0], sel.row[1]);
+  const c0 = Math.min(sel.column[0], sel.column[1]);
+  const c1 = Math.max(sel.column[0], sel.column[1]);
+  const start = toA1(r0, c0);
+  if (r0 === r1 && c0 === c1) return start;
+  return `${start}:${toA1(r1, c1)}`;
+}

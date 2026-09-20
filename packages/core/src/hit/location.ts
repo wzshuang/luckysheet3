@@ -155,6 +155,11 @@ export function hitTest(
   return { row, col };
 }
 
+/** Top-left corner where row header meets column header */
+export function hitCorner(px: number, py: number): boolean {
+  return px >= 0 && py >= 0 && px < ROW_HEADER_WIDTH && py < COL_HEADER_HEIGHT;
+}
+
 /** Hit-test row header edge for resize (returns row index whose bottom edge is near) */
 export function hitRowResize(
   sheet: Sheet,

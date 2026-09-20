@@ -39,6 +39,8 @@ export class Workbook {
   editing = false;
   editRow = 0;
   editCol = 0;
+  /** Live draft while cell editor is open */
+  editDraft = "";
   clipboard: ClipboardPayload | null = null;
   private listeners = new Set<WorkbookListener>();
 
@@ -203,6 +205,7 @@ export class Workbook {
     this.editing = editing;
     if (row != null) this.editRow = row;
     if (col != null) this.editCol = col;
+    if (!editing) this.editDraft = "";
     this.emit({ type: "edit", editing, row: this.editRow, col: this.editCol });
   }
 

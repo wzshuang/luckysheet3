@@ -34,11 +34,16 @@ function syncRect() {
   visible.value = true;
 }
 
+function syncDraft(value: string) {
+  text.value = value;
+  props.engine.setEditDraft(value);
+}
+
 onMounted(() => {
   off = props.engine.on((e) => {
     if (e.type === "edit") {
       if (e.editing) {
-        text.value = props.pendingChar ?? props.engine.getEditText();
+        syncDraft(props.pendingChar ?? props.engine.getEditText());
         if (props.pendingChar) emit("consumedChar");
         syncRect();
         nextTick(() => {
@@ -63,12 +68,16 @@ watch(
   () => props.pendingChar,
   (ch) => {
     if (ch && props.engine.editing) {
-      text.value = ch;
+      syncDraft(ch);
       emit("consumedChar");
       nextTick(() => inputRef.value?.focus());
     }
   },
 );
+
+watch(text, (v) => {
+  if (props.engine.editing) props.engine.setEditDraft(v);
+});
 
 function commit() {
   props.engine.commitEdit(text.value);

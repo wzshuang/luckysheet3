@@ -4,12 +4,15 @@ import {
   buildColOffsets,
   buildRowOffsets,
   hitTest,
+  hitCorner,
   rowTop,
   searchOffset,
   colLeft,
   ROW_HEADER_WIDTH,
   COL_HEADER_HEIGHT,
 } from "../src/hit/location.js";
+import { WorkbookEngine } from "../src/engine.js";
+import { selectionToLabel } from "../src/model/cell-key.js";
 
 describe("location / hit-test", () => {
   it("builds cumulative offsets from rowlen", () => {
@@ -45,5 +48,24 @@ describe("location / hit-test", () => {
       colOffsets,
     );
     expect(hit).toEqual({ row: 0, col: 0 });
+  });
+
+  it("hitCorner detects top-left header intersection", () => {
+    expect(hitCorner(0, 0)).toBe(true);
+    expect(hitCorner(ROW_HEADER_WIDTH - 1, COL_HEADER_HEIGHT - 1)).toBe(true);
+    expect(hitCorner(ROW_HEADER_WIDTH, 0)).toBe(false);
+    expect(hitCorner(0, COL_HEADER_HEIGHT)).toBe(false);
+  });
+});
+
+describe("select all", () => {
+  it("selectAll covers entire sheet and labels as A1:…", () => {
+    const eng = new WorkbookEngine();
+    const sheet = eng.workbook.getActiveSheet();
+    sheet.rowCount = 3;
+    sheet.colCount = 2;
+    eng.selectAll();
+    expect(eng.selection[0]).toEqual({ row: [0, 2], column: [0, 1] });
+    expect(selectionToLabel(eng.selection[0]!)).toBe("A1:B3");
   });
 });

@@ -57,9 +57,33 @@ function localPos(e: PointerEvent) {
 }
 
 function onPointerDown(e: PointerEvent) {
-  if (props.engine.editing) return;
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   const { x, y } = localPos(e);
+
+  // While editing: commit draft and select the clicked cell (Lucky/Excel behavior)
+  if (props.engine.editing) {
+    if (props.engine.hitCorner(x, y)) {
+      props.engine.commitEdit();
+      props.engine.selectAll();
+      wrapRef.value?.focus();
+      return;
+    }
+    const hit = props.engine.hitTest(x, y);
+    if (hit) {
+      props.engine.commitEditAndSelect(hit.row, hit.col);
+      selecting = true;
+      anchor = hit;
+      wrapRef.value?.focus();
+    }
+    return;
+  }
+
+  // Top-left corner → select all cells
+  if (props.engine.hitCorner(x, y)) {
+    props.engine.selectAll();
+    wrapRef.value?.focus();
+    return;
+  }
 
   const rowEdge = props.engine.hitRowResize(x, y);
   if (rowEdge != null) {

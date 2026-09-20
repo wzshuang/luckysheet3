@@ -11,6 +11,7 @@ import {
   getCellRect,
   getFillHandleRect,
   hitColResize,
+  hitCorner as isCornerHit,
   hitRowResize,
   hitTest,
   type CellRect,
@@ -142,6 +143,21 @@ export class WorkbookEngine {
     );
   }
 
+  hitCorner(px: number, py: number): boolean {
+    return isCornerHit(px, py);
+  }
+
+  /** Select entire active sheet (corner-click / select-all) */
+  selectAll(): void {
+    const sheet = this.workbook.getActiveSheet();
+    const lastRow = Math.max(0, sheet.rowCount - 1);
+    const lastCol = Math.max(0, sheet.colCount - 1);
+    this.execute({
+      type: "setSelection",
+      selection: [{ row: [0, lastRow], column: [0, lastCol] }],
+    });
+  }
+
   hitRowResize(px: number, py: number): number | null {
     const { sheet, rowOffsets } = this.offsets();
     return hitRowResize(sheet, px, py, this.workbook.scrollTop, rowOffsets);
@@ -214,22 +230,43 @@ export class WorkbookEngine {
     const r = row ?? sel?.row[0] ?? 0;
     const c = col ?? sel?.column[0] ?? 0;
     this.workbook.setEditing(true, r, c);
+    this.workbook.editDraft = this.getEditText();
   }
 
-  commitEdit(text: string): void {
+  setEditDraft(text: string): void {
+    this.workbook.editDraft = text;
+  }
+
+  commitEdit(text?: string): void {
+    if (!this.workbook.editing) return;
     const r = this.workbook.editRow;
     const c = this.workbook.editCol;
+    const value = text ?? this.workbook.editDraft;
     this.workbook.setEditing(false);
-    if (text.startsWith("=")) {
-      this.execute({ type: "setCellValue", row: r, col: c, value: null, formula: text });
+    if (value.startsWith("=")) {
+      this.execute({ type: "setCellValue", row: r, col: c, value: null, formula: value });
     } else {
       this.execute({
         type: "setCellValue",
         row: r,
         col: c,
-        value: text === "" ? null : text,
+        value: value === "" ? null : value,
       });
     }
+  }
+
+  /**
+   * End in-cell edit (commit draft) and select another cell — Excel/Lucky style
+   * when clicking away from the editor.
+   */
+  commitEditAndSelect(row: number, col: number, text?: string): void {
+    if (this.workbook.editing) {
+      this.commitEdit(text);
+    }
+    this.execute({
+      type: "setSelection",
+      selection: [{ row: [row, row], column: [col, col] }],
+    });
   }
 
   cancelEdit(): void {

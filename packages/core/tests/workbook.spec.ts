@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Workbook } from "../src/model/workbook.js";
 import { Sheet } from "../src/model/sheet.js";
-import { cellKey, parseA1, toA1 } from "../src/model/cell-key.js";
+import { cellKey, parseA1, toA1, selectionToLabel } from "../src/model/cell-key.js";
 
 describe("cell-key", () => {
   it("roundtrips A1", () => {
@@ -14,6 +14,19 @@ describe("cell-key", () => {
 
   it("builds sparse keys", () => {
     expect(cellKey(3, 5)).toBe("3_5");
+  });
+
+  it("formats selection as A1 or A1:B3", () => {
+    expect(
+      selectionToLabel({ row: [0, 0], column: [0, 0] }),
+    ).toBe("A1");
+    expect(
+      selectionToLabel({ row: [0, 2], column: [0, 1] }),
+    ).toBe("A1:B3");
+    // reverse drag still normalizes to top-left:bottom-right
+    expect(
+      selectionToLabel({ row: [2, 0], column: [1, 0] }),
+    ).toBe("A1:B3");
   });
 });
 

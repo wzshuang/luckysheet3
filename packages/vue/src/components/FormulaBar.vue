@@ -2,7 +2,7 @@
 import { ref, watch } from "vue";
 import type { ChromeState } from "../composables/useChromeState";
 import type { WorkbookEngine } from "@luckysheet3/core";
-import { toA1 } from "@luckysheet3/core";
+import { selectionToLabel } from "@luckysheet3/core";
 
 const props = defineProps<{
   engine: WorkbookEngine;
@@ -22,7 +22,7 @@ watch(
 function cellLabel() {
   const sel = props.chrome.selection.value[0];
   if (!sel) return "A1";
-  return toA1(sel.row[0], sel.column[0]);
+  return selectionToLabel(sel);
 }
 
 function commit() {
@@ -73,13 +73,18 @@ function onKeydown(e: KeyboardEvent) {
   min-height: 28px;
 }
 .ls3-formula-bar__name {
-  width: 64px;
+  min-width: 64px;
+  max-width: 120px;
+  padding: 0 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-right: 1px solid #e5e5e5;
   font-size: 12px;
   color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ls3-formula-bar__fx {
   width: 28px;
