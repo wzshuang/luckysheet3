@@ -120,6 +120,10 @@ export class WorkbookEngine {
     this.requestPaint();
   }
 
+  getViewport(): { width: number; height: number } {
+    return { ...this.viewport };
+  }
+
   paint(): void {
     if (!this.renderer) return;
     this.renderer.resize(this.viewport.width, this.viewport.height);

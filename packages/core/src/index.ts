@@ -29,6 +29,10 @@ export {
   hitCorner,
   hitRowHeader,
   hitColHeader,
+  rowIndexAtContentY,
+  colIndexAtContentX,
+  rowResizeIndexAtContentY,
+  colResizeIndexAtContentX,
 } from "./hit/location.js";
 export { cellKey, parseA1, toA1, colToLetter, selectionToLabel } from "./model/cell-key.js";
 export {
@@ -72,3 +76,9 @@ export {
 export type { FormatPresetId, FormatPreset } from "./format/number-format.js";
 export { visibleCellRange } from "./layout/visible-range.js";
 export type { VisibleRange } from "./layout/visible-range.js";
+export { buildHeaderLayout } from "./layout/header-layout.js";
+export type {
+  HeaderLayout,
+  HeaderLayoutItem,
+  HeaderSelectionBand,
+} from "./layout/header-layout.js";

@@ -218,6 +218,57 @@ export function hitRowResize(
   return null;
 }
 
+/** Row index at content Y (freeze 0,0); null if hidden */
+export function rowIndexAtContentY(
+  sheet: Sheet,
+  contentY: number,
+  rowOffsets: number[],
+): number | null {
+  if (contentY < 0) return null;
+  const row = searchOffset(rowOffsets, contentY);
+  if (row < 0 || row >= sheet.rowCount) return null;
+  if (sheet.hiddenRows.has(row)) return null;
+  return row;
+}
+
+export function colIndexAtContentX(
+  sheet: Sheet,
+  contentX: number,
+  colOffsets: number[],
+): number | null {
+  if (contentX < 0) return null;
+  const col = searchOffset(colOffsets, contentX);
+  if (col < 0 || col >= sheet.colCount) return null;
+  return col;
+}
+
+export function rowResizeIndexAtContentY(
+  sheet: Sheet,
+  contentY: number,
+  rowOffsets: number[],
+  threshold = 3,
+): number | null {
+  for (let r = 0; r < sheet.rowCount; r++) {
+    if (sheet.hiddenRows.has(r)) continue;
+    const edge = rowOffsets[r] ?? 0;
+    if (Math.abs(contentY - edge) <= threshold) return r;
+  }
+  return null;
+}
+
+export function colResizeIndexAtContentX(
+  sheet: Sheet,
+  contentX: number,
+  colOffsets: number[],
+  threshold = 3,
+): number | null {
+  for (let c = 0; c < sheet.colCount; c++) {
+    const edge = colOffsets[c] ?? 0;
+    if (Math.abs(contentX - edge) <= threshold) return c;
+  }
+  return null;
+}
+
 export function hitColResize(
   sheet: Sheet,
   px: number,
