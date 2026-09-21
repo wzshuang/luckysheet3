@@ -3,7 +3,7 @@ import { cloneCell } from "../model/cell.js";
 
 export type CellFormat = Pick<
   CellData,
-  "bg" | "fc" | "bl" | "it" | "fs" | "ff" | "ht" | "vt" | "bd" | "ct"
+  "bg" | "fc" | "bl" | "it" | "cl" | "un" | "fs" | "ff" | "ht" | "vt" | "bd" | "ct"
 >;
 
 const FORMAT_KEYS = [
@@ -11,6 +11,8 @@ const FORMAT_KEYS = [
   "fc",
   "bl",
   "it",
+  "cl",
+  "un",
   "fs",
   "ff",
   "ht",

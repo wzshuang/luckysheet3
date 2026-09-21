@@ -191,6 +191,10 @@ function parseStyleString(style: string): Partial<CellData> {
       if (val === "bold" || Number(val) >= 700) out.bl = 1;
     } else if (prop === "font-style" && val === "italic") {
       out.it = 1;
+    } else if (prop === "text-decoration") {
+      const dec = val.toLowerCase();
+      if (dec.includes("underline")) out.un = 1;
+      if (dec.includes("line-through")) out.cl = 1;
     } else if (prop === "font-size") {
       const fs = parseFontSize(val);
       if (fs) out.fs = fs;
@@ -217,6 +221,10 @@ function formatInlineStyle(cell: CellData): string {
   if (cell.fc) bits.push(`color:${cell.fc}`);
   if (cell.bl) bits.push("font-weight:bold");
   if (cell.it) bits.push("font-style:italic");
+  const deco: string[] = [];
+  if (cell.un) deco.push("underline");
+  if (cell.cl) deco.push("line-through");
+  if (deco.length) bits.push(`text-decoration:${deco.join(" ")}`);
   if (cell.fs) bits.push(`font-size:${cell.fs}pt`);
   if (cell.ht === 1) bits.push("text-align:left");
   else if (cell.ht === 0) bits.push("text-align:center");

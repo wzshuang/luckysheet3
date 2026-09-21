@@ -62,4 +62,18 @@ describe("number format", () => {
     eng.toggleStyleOnSelection("bl");
     expect(eng.workbook.getCell(0, 0)?.bl).toBe(0);
   });
+
+  it("toggle strikethrough and underline", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [0, 0], column: [0, 0] }],
+    });
+    eng.toggleStyleOnSelection("cl");
+    expect(eng.workbook.getCell(0, 0)?.cl).toBe(1);
+    eng.toggleStyleOnSelection("un");
+    expect(eng.workbook.getCell(0, 0)?.un).toBe(1);
+    eng.toggleStyleOnSelection("cl");
+    expect(eng.workbook.getCell(0, 0)?.cl).toBe(0);
+  });
 });

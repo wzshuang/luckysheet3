@@ -11,13 +11,12 @@ const GLYPHS = [
   "qianjin",
   "houtui",
   "geshishua",
-  "bianji2",
-  "caijian",
-  "bianji",
   "xiayige",
   "qingchuyangshi",
   "jiacu",
   "wenbenqingxie1",
+  "wenbenshanchuxian",
+  "wenbenxiahuaxian",
   "wenbenyanse",
   "tianchong",
   "quanjiabiankuang",
@@ -68,6 +67,9 @@ describe("toolbar.css tokens", () => {
     assert.match(css, /border-radius:\s*2px/);
     assert.match(css, /rgba\(0,\s*0,\s*0,\s*\.06\)/);
     assert.match(css, /rgba\(0,\s*0,\s*0,\s*\.12\)/);
+    assert.match(css, /\.ls3-toolbar__menu/);
+    assert.match(css, /min-width:\s*120px/);
+    assert.match(css, /#efefef/);
     assert.doesNotMatch(css, /#e6f4ff/);
   });
 });
@@ -96,9 +98,14 @@ describe("Toolbar.vue markup", () => {
     assert.match(sfc, /title="查找替换"/);
     assert.match(sfc, /icon="qianjin"/);
     assert.match(sfc, /icon="geshishua"/);
-    assert.match(sfc, /ls3-toolbar__split/);
+    assert.match(sfc, /ls3-toolbar__split--color/);
     assert.match(sfc, /ls3-toolbar__combo--size/);
     assert.match(sfc, /ls3-toolbar__combo--format/);
+    assert.match(sfc, /import ToolbarAlignSplit from "\.\/ToolbarAlignSplit\.vue"/);
+    assert.match(sfc, /axis="horizontal"/);
+    assert.match(sfc, /axis="vertical"/);
+    assert.doesNotMatch(sfc, /icon="wenbenzuoduiqi"/);
+    assert.doesNotMatch(sfc, /title="左对齐"/);
     assert.match(sfc, /luckysheet-iconfont-wenbenyanse/);
     assert.match(sfc, /luckysheet-iconfont-tianchong/);
     assert.doesNotMatch(sfc, />Undo</);
@@ -112,23 +119,16 @@ describe("Toolbar.vue markup", () => {
       "qianjin",
       "houtui",
       "geshishua",
-      "bianji2",
-      "caijian",
-      "bianji",
       "qingchuyangshi",
       "jiacu",
       "wenbenqingxie1",
+      "wenbenshanchuxian",
+      "wenbenxiahuaxian",
       "quanjiabiankuang",
       "sizhoujiabiankuang",
       "wubiankuang",
       "hebing",
       "quxiaohebing",
-      "wenbenzuoduiqi",
-      "wenbenjuzhongduiqi",
-      "wenbenyouduiqi",
-      "dingbuduiqi",
-      "shuipingduiqi",
-      "dibuduiqi",
       "hang",
       "jian1",
       "lie",
@@ -139,5 +139,24 @@ describe("Toolbar.vue markup", () => {
       "qingchu",
       "sousuo",
     ]);
+  });
+});
+
+const alignSplitPath = path.join(root, "src/components/ToolbarAlignSplit.vue");
+
+describe("ToolbarAlignSplit.vue", () => {
+  it("merges horizontal and vertical align into split menus", () => {
+    const sfc = fs.readFileSync(alignSplitPath, "utf8");
+    assert.match(sfc, /ls3-toolbar__menu/);
+    assert.match(sfc, /ls3-toolbar__split--align/);
+    assert.match(sfc, /wenbenzuoduiqi/);
+    assert.match(sfc, /wenbenjuzhongduiqi/);
+    assert.match(sfc, /wenbenyouduiqi/);
+    assert.match(sfc, /dingbuduiqi/);
+    assert.match(sfc, /shuipingduiqi/);
+    assert.match(sfc, /dibuduiqi/);
+    assert.match(sfc, /title: "左对齐"/);
+    assert.match(sfc, /applyStyleToSelection\(\{ ht: value \}\)/);
+    assert.match(sfc, /applyStyleToSelection\(\{ vt: value \}\)/);
   });
 });

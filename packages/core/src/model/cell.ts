@@ -25,6 +25,10 @@ export interface CellStyle {
   bl?: number;
   /** italic 0|1 */
   it?: number;
+  /** strikethrough 0|1 */
+  cl?: number;
+  /** underline 0|1 */
+  un?: number;
   /** font size */
   fs?: number;
   /** font family index / name */

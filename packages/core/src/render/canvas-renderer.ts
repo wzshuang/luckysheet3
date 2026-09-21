@@ -19,6 +19,52 @@ import {
   getFocusCell,
 } from "../selection/range.js";
 
+function textDecorationLineYs(
+  ty: number,
+  baseline: CanvasTextBaseline,
+  fsPx: number,
+): { underline: number; strike: number } {
+  if (baseline === "top") {
+    return { underline: ty + fsPx * 0.9, strike: ty + fsPx * 0.45 };
+  }
+  if (baseline === "bottom") {
+    return { underline: ty - fsPx * 0.05, strike: ty - fsPx * 0.45 };
+  }
+  return { underline: ty + fsPx * 0.3, strike: ty - fsPx * 0.15 };
+}
+
+function paintTextDecorations(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  tx: number,
+  ty: number,
+  fs: number,
+  cell: { fc?: string | null; un?: number; cl?: number } | null | undefined,
+): void {
+  if (!cell?.un && !cell?.cl) return;
+  const fsPx = fs * (96 / 72);
+  const width = ctx.measureText(text).width;
+  let x0 = tx;
+  if (ctx.textAlign === "center") x0 = tx - width / 2;
+  else if (ctx.textAlign === "right") x0 = tx - width;
+
+  const { underline, strike } = textDecorationLineYs(ty, ctx.textBaseline, fsPx);
+  ctx.save();
+  ctx.strokeStyle = cell.fc ?? "#000000";
+  ctx.lineWidth = Math.max(1, fsPx / 12);
+  ctx.beginPath();
+  if (cell.un) {
+    ctx.moveTo(x0, underline);
+    ctx.lineTo(x0 + width, underline);
+  }
+  if (cell.cl) {
+    ctx.moveTo(x0, strike);
+    ctx.lineTo(x0 + width, strike);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 export type RenderViewport = {
   width: number;
   height: number;
@@ -219,6 +265,7 @@ export class CanvasRenderer {
         const italic = cell?.it ? "italic " : "";
         ctx.font = `${italic}${bold}${fs}pt sans-serif`;
         ctx.fillStyle = cell?.fc ?? "#000000";
+        // Luckysheet checkstatusByCell defaults: ht 1 left, vt 0 middle
         const ht = cell?.ht ?? 1;
         const vt = cell?.vt ?? 0;
         let tx = rect.x + 3;
@@ -242,6 +289,7 @@ export class CanvasRenderer {
           ctx.textBaseline = "middle";
         }
         ctx.fillText(text, tx, ty);
+        paintTextDecorations(ctx, text, tx, ty, fs, cell);
       }
     };
 

@@ -13,6 +13,11 @@ export type ChromeState = {
   editing: ShallowRef<boolean>;
   formulaText: ShallowRef<string>;
   paintFormatActive: ShallowRef<boolean>;
+  /**
+   * Bumped on every change/selection event. Cell styles are not reactive, so
+   * toolbar buttons that mirror the active cell's format need this to re-evaluate.
+   */
+  styleRev: ShallowRef<number>;
 };
 
 /** Subscribe engine events into shallowRefs for chrome only — never reactive cells. */
@@ -25,6 +30,7 @@ export function useChromeState(engine: WorkbookEngine): ChromeState {
   const editing = shallowRef(engine.editing);
   const formulaText = shallowRef("");
   const paintFormatActive = shallowRef(engine.isPaintFormatActive());
+  const styleRev = shallowRef(0);
 
   const syncFormula = () => {
     const sel = engine.selection[0];
@@ -54,7 +60,10 @@ export function useChromeState(engine: WorkbookEngine): ChromeState {
       }
       if (e.type === "edit") editing.value = e.editing;
       if (e.type === "paintFormat") paintFormatActive.value = e.active;
-      if (e.type === "change" || e.type === "selection") syncFormula();
+      if (e.type === "change" || e.type === "selection") {
+        styleRev.value++;
+        syncFormula();
+      }
     });
   });
 
@@ -69,5 +78,6 @@ export function useChromeState(engine: WorkbookEngine): ChromeState {
     editing,
     formulaText,
     paintFormatActive,
+    styleRev,
   };
 }

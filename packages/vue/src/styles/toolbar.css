@@ -16,7 +16,7 @@
   box-sizing: border-box;
 }
 
-.ls3-toolbar .iconfont-luckysheet {
+.ls3-toolbar .iconfont-luckysheet:not(.luckysheet-iconfont-xiayige) {
   font-size: 24px;
   line-height: 26px;
 }
@@ -96,25 +96,135 @@
 
 .ls3-toolbar__split-left {
   min-width: 26px;
+  margin-right: 0;
   border-radius: 2px 0 0 2px;
 }
 
+/* 原版 split-right：按钮 min-width 5px + dropdown padding 0 3px ≈ 11px 点击区 */
 .ls3-toolbar__split-right {
-  min-width: 14px;
-  padding: 0 2px;
+  flex: 0 0 auto;
+  min-width: 11px;
+  padding: 0 3px;
   border-radius: 0 2px 2px 0;
 }
 
-.ls3-toolbar__split:hover .ls3-toolbar__split-left,
-.ls3-toolbar__split:hover .ls3-toolbar__split-right,
-.ls3-toolbar__split:focus-within .ls3-toolbar__split-left,
-.ls3-toolbar__split:focus-within .ls3-toolbar__split-right {
-  background: rgba(0, 0, 0, .06);
+.ls3-toolbar__split-right .luckysheet-iconfont-xiayige {
+  display: block;
+  opacity: 0.8;
 }
 
-.ls3-toolbar__split:hover .ls3-toolbar__split-right,
-.ls3-toolbar__split:focus-within .ls3-toolbar__split-right {
+/* 对齐 / 颜色：与对齐组相同的 split 按钮 chrome（不用整组 hover） */
+.ls3-toolbar__split--align,
+.ls3-toolbar__split--color {
+  position: relative;
+  display: inline-flex;
+  height: 26px;
+  margin: 0 1px;
+}
+
+.ls3-toolbar__split--align .ls3-toolbar__split-left,
+.ls3-toolbar__split--align .ls3-toolbar__split-right,
+.ls3-toolbar__split--color .ls3-toolbar__split-left,
+.ls3-toolbar__split--color .ls3-toolbar__split-right {
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #333;
+  font-size: 11px;
+  line-height: 26px;
+  cursor: default;
+  outline: none;
+}
+
+.ls3-toolbar__split--align .ls3-toolbar__split-left,
+.ls3-toolbar__split--color .ls3-toolbar__split-left {
+  min-width: 26px;
+  border-radius: 2px 0 0 2px;
+}
+
+.ls3-toolbar__split--align .ls3-toolbar__split-right,
+.ls3-toolbar__split--color .ls3-toolbar__split-right {
+  border-radius: 0 2px 2px 0;
+}
+
+.ls3-toolbar__split--color .ls3-toolbar__split-right {
+  border-radius: 0 2px 2px 0;
+}
+
+.ls3-toolbar__split--align .ls3-toolbar__split-left:hover,
+.ls3-toolbar__split--align .ls3-toolbar__split-right:hover,
+.ls3-toolbar__split--align .ls3-toolbar__split-left:focus-visible,
+.ls3-toolbar__split--align .ls3-toolbar__split-right:focus-visible,
+.ls3-toolbar__split--align .ls3-toolbar__split-right[aria-expanded="true"],
+.ls3-toolbar__split--color .ls3-toolbar__split-left:hover,
+.ls3-toolbar__split--color .ls3-toolbar__split-right:hover,
+.ls3-toolbar__split--color .ls3-toolbar__split-left:focus-visible,
+.ls3-toolbar__split--color .ls3-toolbar__split-right:focus-visible {
+  background: rgba(0, 0, 0, .06);
+  cursor: pointer;
+}
+
+.ls3-toolbar__split--align .ls3-toolbar__split-left:active,
+.ls3-toolbar__split--align .ls3-toolbar__split-right:active,
+.ls3-toolbar__split--color .ls3-toolbar__split-left:active,
+.ls3-toolbar__split--color .ls3-toolbar__split-right:active {
+  background: rgba(0, 0, 0, .12);
+  cursor: pointer;
+}
+
+.ls3-toolbar__split--align .ls3-toolbar__split-right:hover,
+.ls3-toolbar__split--align .ls3-toolbar__split-right:focus-visible,
+.ls3-toolbar__split--align .ls3-toolbar__split-right[aria-expanded="true"],
+.ls3-toolbar__split--color .ls3-toolbar__split-right:hover,
+.ls3-toolbar__split--color .ls3-toolbar__split-right:focus-visible {
   border-left-color: rgba(0, 0, 0, .12);
+}
+
+.ls3-toolbar__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1004;
+  min-width: 120px;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ls3-toolbar__menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: #333;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ls3-toolbar__menu-item:hover,
+.ls3-toolbar__menu-item.is-on {
+  background: #efefef;
+}
+
+.ls3-toolbar__menu-item .iconfont-luckysheet {
+  width: 26px;
+  margin-right: 4px;
+  font-size: 24px;
+  line-height: 26px;
+}
+
+.ls3-toolbar__menu-label {
+  font-size: 13px;
 }
 
 .ls3-toolbar__swatch {
@@ -136,14 +246,16 @@
 
 .ls3-toolbar__color-input {
   position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
+  width: 1px;
+  height: 1px;
   padding: 0;
-  border: none;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .ls3-toolbar__combo {
@@ -194,3 +306,4 @@
   appearance: none;
   -webkit-appearance: none;
 }
+

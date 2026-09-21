@@ -490,7 +490,9 @@ export class WorkbookEngine {
   }
 
   applyStyleToSelection(
-    style: Partial<Pick<CellData, "bg" | "fc" | "bl" | "it" | "fs" | "ff" | "ht" | "vt">>,
+    style: Partial<
+      Pick<CellData, "bg" | "fc" | "bl" | "it" | "cl" | "un" | "fs" | "ff" | "ht" | "vt">
+    >,
   ): void {
     const sel = this.getActiveRange();
     if (!sel) return;
@@ -506,7 +508,7 @@ export class WorkbookEngine {
   }
 
   /** Toggle bold / italic on selection using first cell as reference */
-  toggleStyleOnSelection(key: "bl" | "it"): void {
+  toggleStyleOnSelection(key: "bl" | "it" | "cl" | "un"): void {
     const focus = this.getFocusCell();
     if (!focus) return;
     const cell = this.workbook.getCell(focus.row, focus.col);

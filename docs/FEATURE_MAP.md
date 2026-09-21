@@ -55,7 +55,7 @@
 | `keyboard.js`                         | 全套快捷键                 | `GridCanvas.vue` `onKeyDown`                                   | usable   | Ctrl+A/Shift 方向键已绑；仍缺大量格式快捷键 |
 | `select.js` / `selection.js`          | 选区高亮、名称框、多选           | `selection/range.ts` + engine select* + canvas-renderer + selectionToLabel | usable   | **A/B 已做** 选区/复制虚线/TSV·HTML 粘贴/格式刷/合并粘贴；仍缺保护、粘贴选项、协同框 |
 | `formulaBar.js`                       | 公式栏                   | `vue/components/FormulaBar.vue`                                | usable   | 公式编辑时选区引用插入、名称框跳转                        |
-| `toolbar.js`                          | 工具栏按钮编排               | `vue/components/Toolbar.vue`                                   | usable   | 按钮外观已对齐原版 iconfont；下拉/弹层仍无。见 §5 工具栏细项 |
+| `toolbar.js`                          | 工具栏按钮编排               | `vue/components/Toolbar.vue`                                   | usable   | 按钮外观已对齐原版 iconfont；水平/垂直对齐为拆分+菜单，其余下拉/弹层仍无。见 §5 工具栏细项 |
 | `menuButton.js`                       | 工具栏下拉 + 右键菜单          | —                                                              | none     | 右键菜单整体缺失                                 |
 | `constant.js`                         | HTML 字符串模板外壳          | `vue/components/LuckySheet.vue` 等                              | usable   | 结构已 Vue 化，无字符串模板                         |
 | `controlHistory.js`                   | 撤销重做                  | `core/command/bus.ts`                                          | usable   | 历史粒度/合并策略与原版不同                           |
@@ -190,7 +190,7 @@
 | 文本色/填充色       | usable   | 原生 color input                       |
 | 边框            | usable   | all / outside / none                 |
 | 合并            | usable   | 缺合并类型菜单                              |
-| 水平/垂直对齐       | usable   |                                      |
+| 水平/垂直对齐       | usable   | 拆分按钮 + 菜单（左/中/右、顶/中/底）              |
 | 自动换行/旋转       | none     |                                      |
 | 冻结            | usable   |                                      |
 | 排序和筛选         | skeleton | 仅 filter API                         |

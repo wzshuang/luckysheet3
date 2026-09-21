@@ -8,6 +8,7 @@ import {
   type WorkbookEngine,
 } from "@luckysheet3/core";
 import FindReplaceDialog from "./FindReplaceDialog.vue";
+import ToolbarAlignSplit from "./ToolbarAlignSplit.vue";
 import ToolbarButton from "./ToolbarButton.vue";
 
 const props = defineProps<{
@@ -16,6 +17,9 @@ const props = defineProps<{
 }>();
 
 const showFind = ref(false);
+const openAlignMenu = ref<null | "horizontal" | "vertical">(null);
+const fontColorInput = ref<HTMLInputElement | null>(null);
+const fillColorInput = ref<HTMLInputElement | null>(null);
 const fontSize = ref(10);
 const fontColor = ref("#000000");
 const fillColor = ref("#fff1b8");
@@ -24,14 +28,20 @@ const formatId = ref<FormatPresetId>("general");
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24];
 
 const isBold = computed(() => {
-  void props.chrome.selection.value;
-  void props.chrome.formulaText.value;
+  void props.chrome.styleRev.value;
   return !!props.engine.getActiveCellStyle()?.bl;
 });
 const isItalic = computed(() => {
-  void props.chrome.selection.value;
-  void props.chrome.formulaText.value;
+  void props.chrome.styleRev.value;
   return !!props.engine.getActiveCellStyle()?.it;
+});
+const isStrikethrough = computed(() => {
+  void props.chrome.styleRev.value;
+  return !!props.engine.getActiveCellStyle()?.cl;
+});
+const isUnderline = computed(() => {
+  void props.chrome.styleRev.value;
+  return !!props.engine.getActiveCellStyle()?.un;
 });
 
 const isPaintFormatActive = computed(() => props.chrome.paintFormatActive.value);
@@ -48,11 +58,7 @@ function syncFromSelection() {
   formatId.value = activeCellFormatId(cell);
 }
 
-watch(
-  () => [props.chrome.selection.value, props.chrome.formulaText.value],
-  () => syncFromSelection(),
-  { deep: true },
-);
+watch(() => props.chrome.styleRev.value, () => syncFromSelection());
 
 function freezeRow() {
   props.engine.setFreeze(1, 0);
@@ -81,71 +87,27 @@ function onFillColor(e: Event) {
   props.engine.applyStyleToSelection({ bg: v });
 }
 
+function openFontColorPicker() {
+  fontColorInput.value?.click();
+}
+
+function openFillColorPicker() {
+  fillColorInput.value?.click();
+}
+
+/** 原版左半：把工具栏当前色应用到选区，不打开取色器 */
+function applyFontColorToSelection() {
+  props.engine.applyStyleToSelection({ fc: fontColor.value });
+}
+
+function applyFillColorToSelection() {
+  props.engine.applyStyleToSelection({ bg: fillColor.value });
+}
+
 function onFormat(e: Event) {
   const v = (e.target as HTMLSelectElement).value as FormatPresetId;
   formatId.value = v;
   props.engine.applyFormatToSelection(v);
-}
-
-async function writeSystemClipboard(): Promise<void> {
-  const text = props.engine.getClipboardTsv();
-  const html = props.engine.getClipboardHtml();
-  if (text == null) return;
-  try {
-    const nav = navigator.clipboard;
-    if (nav && "write" in nav && typeof ClipboardItem !== "undefined" && html) {
-      await nav.write([
-        new ClipboardItem({
-          "text/plain": new Blob([text], { type: "text/plain" }),
-          "text/html": new Blob([html], { type: "text/html" }),
-        }),
-      ]);
-      return;
-    }
-    if (nav?.writeText) await nav.writeText(text);
-  } catch {
-    /* in-memory clipboard still works */
-  }
-}
-
-function onCopy() {
-  props.engine.copySelection();
-  void writeSystemClipboard();
-}
-
-function onCut() {
-  props.engine.cutSelection();
-  void writeSystemClipboard();
-}
-
-async function onPaste() {
-  if (props.engine.workbook.clipboard) {
-    props.engine.pasteAtSelection();
-    return;
-  }
-  try {
-    const nav = navigator.clipboard;
-    if (nav && "read" in nav) {
-      const items = await nav.read();
-      let html: string | undefined;
-      let text: string | undefined;
-      for (const item of items) {
-        if (item.types.includes("text/html")) {
-          html = await (await item.getType("text/html")).text();
-        }
-        if (item.types.includes("text/plain")) {
-          text = await (await item.getType("text/plain")).text();
-        }
-      }
-      if (props.engine.pasteFromExternal({ html, text })) return;
-    } else if (nav?.readText) {
-      const text = await nav.readText();
-      if (props.engine.pasteFromExternal({ text })) return;
-    }
-  } catch {
-    /* fall through */
-  }
-  props.engine.pasteAtSelection();
 }
 
 let paintClickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -183,10 +145,6 @@ function onPaintClick() {
       @click="onPaintClick"
     />
     <span class="ls3-toolbar__sep" />
-    <ToolbarButton icon="bianji2" title="复制" @click="onCopy" />
-    <ToolbarButton icon="caijian" title="剪切" @click="onCut" />
-    <ToolbarButton icon="bianji" title="粘贴" @click="onPaste" />
-    <span class="ls3-toolbar__sep" />
     <div class="ls3-toolbar__combo ls3-toolbar__combo--format" title="数字格式">
       <span class="ls3-toolbar__combo-value">{{ formatLabel }}</span>
       <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
@@ -206,30 +164,58 @@ function onPaintClick() {
     <span class="ls3-toolbar__sep" />
     <ToolbarButton icon="jiacu" title="粗体" :active="isBold" @click="engine.toggleStyleOnSelection('bl')" />
     <ToolbarButton icon="wenbenqingxie1" title="斜体" :active="isItalic" @click="engine.toggleStyleOnSelection('it')" />
-    <div class="ls3-toolbar__split" title="文字颜色">
-      <span class="ls3-toolbar__split-left">
+    <ToolbarButton
+      icon="wenbenshanchuxian"
+      title="删除线 (Alt+Shift+5)"
+      :active="isStrikethrough"
+      @click="engine.toggleStyleOnSelection('cl')"
+    />
+    <ToolbarButton
+      icon="wenbenxiahuaxian"
+      title="下划线"
+      :active="isUnderline"
+      @click="engine.toggleStyleOnSelection('un')"
+    />
+    <div class="ls3-toolbar__split ls3-toolbar__split--color" title="文字颜色">
+      <button type="button" class="ls3-toolbar__split-left" title="文字颜色" @click="applyFontColorToSelection">
         <span class="ls3-toolbar__swatch">
           <i class="iconfont-luckysheet luckysheet-iconfont-wenbenyanse ls3-toolbar__icon" aria-hidden="true" />
           <span class="ls3-toolbar__color-bar" :style="{ backgroundColor: fontColor }" />
         </span>
-      </span>
-      <span class="ls3-toolbar__split-right">
+      </button>
+      <button type="button" class="ls3-toolbar__split-right" title="选择文字颜色" @click="openFontColorPicker">
         <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
-      </span>
-      <input class="ls3-toolbar__color-input" type="color" :value="fontColor" @input="onFontColor" />
+      </button>
+      <input
+        ref="fontColorInput"
+        class="ls3-toolbar__color-input"
+        type="color"
+        tabindex="-1"
+        aria-hidden="true"
+        :value="fontColor"
+        @input="onFontColor"
+      />
     </div>
     <span class="ls3-toolbar__sep" />
-    <div class="ls3-toolbar__split" title="填充颜色">
-      <span class="ls3-toolbar__split-left">
+    <div class="ls3-toolbar__split ls3-toolbar__split--color" title="填充颜色">
+      <button type="button" class="ls3-toolbar__split-left" title="填充颜色" @click="applyFillColorToSelection">
         <span class="ls3-toolbar__swatch">
           <i class="iconfont-luckysheet luckysheet-iconfont-tianchong ls3-toolbar__icon" aria-hidden="true" />
           <span class="ls3-toolbar__color-bar" :style="{ backgroundColor: fillColor }" />
         </span>
-      </span>
-      <span class="ls3-toolbar__split-right">
+      </button>
+      <button type="button" class="ls3-toolbar__split-right" title="选择填充颜色" @click="openFillColorPicker">
         <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
-      </span>
-      <input class="ls3-toolbar__color-input" type="color" :value="fillColor" @input="onFillColor" />
+      </button>
+      <input
+        ref="fillColorInput"
+        class="ls3-toolbar__color-input"
+        type="color"
+        tabindex="-1"
+        aria-hidden="true"
+        :value="fillColor"
+        @input="onFillColor"
+      />
     </div>
     <ToolbarButton icon="quanjiabiankuang" title="所有边框" @click="engine.applyBordersToSelection('all')" />
     <ToolbarButton icon="sizhoujiabiankuang" title="外边框" @click="engine.applyBordersToSelection('outside')" />
@@ -237,12 +223,20 @@ function onPaintClick() {
     <ToolbarButton icon="hebing" title="合并单元格" @click="engine.mergeSelection()" />
     <ToolbarButton icon="quxiaohebing" title="取消合并" @click="engine.unmergeSelection()" />
     <span class="ls3-toolbar__sep" />
-    <ToolbarButton icon="wenbenzuoduiqi" title="左对齐" @click="engine.applyStyleToSelection({ ht: 1 })" />
-    <ToolbarButton icon="wenbenjuzhongduiqi" title="居中" @click="engine.applyStyleToSelection({ ht: 0 })" />
-    <ToolbarButton icon="wenbenyouduiqi" title="右对齐" @click="engine.applyStyleToSelection({ ht: 2 })" />
-    <ToolbarButton icon="dingbuduiqi" title="顶端对齐" @click="engine.applyStyleToSelection({ vt: 1 })" />
-    <ToolbarButton icon="shuipingduiqi" title="垂直居中" @click="engine.applyStyleToSelection({ vt: 0 })" />
-    <ToolbarButton icon="dibuduiqi" title="底端对齐" @click="engine.applyStyleToSelection({ vt: 2 })" />
+    <ToolbarAlignSplit
+      axis="horizontal"
+      :engine="engine"
+      :chrome="chrome"
+      :open="openAlignMenu === 'horizontal'"
+      @update:open="(v) => (openAlignMenu = v ? 'horizontal' : null)"
+    />
+    <ToolbarAlignSplit
+      axis="vertical"
+      :engine="engine"
+      :chrome="chrome"
+      :open="openAlignMenu === 'vertical'"
+      @update:open="(v) => (openAlignMenu = v ? 'vertical' : null)"
+    />
     <span class="ls3-toolbar__sep" />
     <ToolbarButton icon="hang" title="插入行" @click="engine.insertRowsAtSelection()" />
     <ToolbarButton icon="jian1" title="删除行" @click="engine.deleteRowsAtSelection()" />
