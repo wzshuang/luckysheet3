@@ -20,24 +20,29 @@ watch(
 );
 
 function cellLabel() {
-  const sel = props.chrome.selection.value[0];
+  const list = props.chrome.selection.value;
+  const sel = list.length ? list[list.length - 1] : null;
   if (!sel) return "A1";
-  return selectionToLabel(sel);
+  return selectionToLabel(sel, props.engine.workbook.getActiveSheet());
 }
 
 function commit() {
-  const sel = props.engine.selection[0];
-  if (!sel) return;
-  const r = Math.min(sel.row[0], sel.row[1]);
-  const c = Math.min(sel.column[0], sel.column[1]);
+  const focus = props.engine.getFocusCell();
+  if (!focus) return;
   const text = draft.value;
   if (text.startsWith("=")) {
-    props.engine.execute({ type: "setCellValue", row: r, col: c, value: null, formula: text });
+    props.engine.execute({
+      type: "setCellValue",
+      row: focus.row,
+      col: focus.col,
+      value: null,
+      formula: text,
+    });
   } else {
     props.engine.execute({
       type: "setCellValue",
-      row: r,
-      col: c,
+      row: focus.row,
+      col: focus.col,
       value: text === "" ? null : text,
     });
   }

@@ -79,6 +79,67 @@ function onFormat(e: Event) {
   formatId.value = v;
   props.engine.applyFormatToSelection(v);
 }
+
+async function writeSystemClipboard(): Promise<void> {
+  const text = props.engine.getClipboardTsv();
+  const html = props.engine.getClipboardHtml();
+  if (text == null) return;
+  try {
+    const nav = navigator.clipboard;
+    if (nav && "write" in nav && typeof ClipboardItem !== "undefined" && html) {
+      await nav.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+      return;
+    }
+    if (nav?.writeText) await nav.writeText(text);
+  } catch {
+    /* in-memory clipboard still works */
+  }
+}
+
+function onCopy() {
+  props.engine.copySelection();
+  void writeSystemClipboard();
+}
+
+function onCut() {
+  props.engine.cutSelection();
+  void writeSystemClipboard();
+}
+
+async function onPaste() {
+  if (props.engine.workbook.clipboard) {
+    props.engine.pasteAtSelection();
+    return;
+  }
+  try {
+    const nav = navigator.clipboard;
+    if (nav && "read" in nav) {
+      const items = await nav.read();
+      let html: string | undefined;
+      let text: string | undefined;
+      for (const item of items) {
+        if (item.types.includes("text/html")) {
+          html = await (await item.getType("text/html")).text();
+        }
+        if (item.types.includes("text/plain")) {
+          text = await (await item.getType("text/plain")).text();
+        }
+      }
+      if (props.engine.pasteFromExternal({ html, text })) return;
+    } else if (nav?.readText) {
+      const text = await nav.readText();
+      if (props.engine.pasteFromExternal({ text })) return;
+    }
+  } catch {
+    /* fall through */
+  }
+  props.engine.pasteAtSelection();
+}
 </script>
 
 <template>
@@ -141,9 +202,9 @@ function onFormat(e: Event) {
     <button type="button" title="Insert col" @click="engine.insertColsAtSelection()">+Col</button>
     <button type="button" title="Delete col" @click="engine.deleteColsAtSelection()">-Col</button>
     <span class="ls3-toolbar__sep" />
-    <button type="button" @click="engine.copySelection()">Copy</button>
-    <button type="button" @click="engine.cutSelection()">Cut</button>
-    <button type="button" @click="engine.pasteAtSelection()">Paste</button>
+    <button type="button" @click="onCopy">Copy</button>
+    <button type="button" @click="onCut">Cut</button>
+    <button type="button" @click="onPaste">Paste</button>
     <span class="ls3-toolbar__sep" />
     <button type="button" title="Border all" @click="engine.applyBordersToSelection('all')">Border</button>
     <button type="button" title="Outer border" @click="engine.applyBordersToSelection('outside')">Outer</button>

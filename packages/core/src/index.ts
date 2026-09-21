@@ -27,14 +27,31 @@ export {
   hitColResize,
   freezeBandSize,
   hitCorner,
+  hitRowHeader,
+  hitColHeader,
 } from "./hit/location.js";
 export { cellKey, parseA1, toA1, colToLetter, selectionToLabel } from "./model/cell-key.js";
+export {
+  normalizeRange,
+  extendRange,
+  rangesOverlap,
+  aggregateRowColHeaders,
+  getFocusCell,
+  selectTitlesRange,
+} from "./selection/range.js";
 export { displayValue, cloneCell } from "./model/cell.js";
 export type { CellBorder, BorderSide } from "./model/cell.js";
 export { findNext, collectColumnValues } from "./find/find-replace.js";
 export type { Command as EngineCommand } from "./command/types.js";
 export { applyBorders } from "./border/borders.js";
 export type { BorderMode } from "./border/borders.js";
+export {
+  cellsToTsv,
+  cellsToHtml,
+  parseTsv,
+  parseHtmlTable,
+  parseClipboardPayload,
+} from "./clipboard/serialize.js";
 export {
   FORMAT_PRESETS,
   formatDisplay,

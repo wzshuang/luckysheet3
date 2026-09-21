@@ -65,7 +65,14 @@ describe("select all", () => {
     sheet.rowCount = 3;
     sheet.colCount = 2;
     eng.selectAll();
-    expect(eng.selection[0]).toEqual({ row: [0, 2], column: [0, 1] });
+    expect(eng.selection[0]).toMatchObject({
+      row: [0, 2],
+      column: [0, 1],
+      row_focus: 0,
+      column_focus: 0,
+      row_select: true,
+      column_select: true,
+    });
     expect(selectionToLabel(eng.selection[0]!)).toBe("A1:B3");
   });
 });

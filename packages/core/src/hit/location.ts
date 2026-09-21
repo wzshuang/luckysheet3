@@ -160,6 +160,42 @@ export function hitCorner(px: number, py: number): boolean {
   return px >= 0 && py >= 0 && px < ROW_HEADER_WIDTH && py < COL_HEADER_HEIGHT;
 }
 
+/** Hit-test row header body (not resize edge) → row index */
+export function hitRowHeader(
+  sheet: Sheet,
+  px: number,
+  py: number,
+  scrollTop: number,
+  rowOffsets: number[],
+): number | null {
+  if (px < 0 || px >= ROW_HEADER_WIDTH || py < COL_HEADER_HEIGHT) return null;
+  const fr = freezeOf(sheet);
+  const bandH = fr.row > 0 ? rowTop(rowOffsets, fr.row) : 0;
+  const localY = py - COL_HEADER_HEIGHT;
+  const contentY = localY < bandH ? localY : localY + scrollTop;
+  const row = searchOffset(rowOffsets, contentY);
+  if (row < 0) return null;
+  return Math.min(row, Math.max(0, sheet.rowCount - 1));
+}
+
+/** Hit-test column header body (not resize edge) → col index */
+export function hitColHeader(
+  sheet: Sheet,
+  px: number,
+  py: number,
+  scrollLeft: number,
+  colOffsets: number[],
+): number | null {
+  if (py < 0 || py >= COL_HEADER_HEIGHT || px < ROW_HEADER_WIDTH) return null;
+  const fr = freezeOf(sheet);
+  const bandW = fr.col > 0 ? colLeft(colOffsets, fr.col) : 0;
+  const localX = px - ROW_HEADER_WIDTH;
+  const contentX = localX < bandW ? localX : localX + scrollLeft;
+  const col = searchOffset(colOffsets, contentX);
+  if (col < 0) return null;
+  return Math.min(col, Math.max(0, sheet.colCount - 1));
+}
+
 /** Hit-test row header edge for resize (returns row index whose bottom edge is near) */
 export function hitRowResize(
   sheet: Sheet,

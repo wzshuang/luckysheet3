@@ -1,10 +1,17 @@
 import { Sheet, type SheetSnapshot } from "./sheet.js";
 import { type Cell, type CellData, cloneCell } from "./cell.js";
 import type { ClipboardPayload } from "../clipboard/clipboard.js";
+import { normalizeRange } from "../selection/range.js";
 
 export type SelectionRange = {
   row: [number, number];
   column: [number, number];
+  row_focus?: number;
+  column_focus?: number;
+  /** entire row(s) selected via row header */
+  row_select?: boolean;
+  /** entire column(s) selected via column header */
+  column_select?: boolean;
 };
 
 export type WorkbookListener = (event: WorkbookEvent) => void;
@@ -42,6 +49,8 @@ export class Workbook {
   /** Live draft while cell editor is open */
   editDraft = "";
   clipboard: ClipboardPayload | null = null;
+  /** Marching-ants range after copy/cut; cleared on Esc / cut-paste / new copy. */
+  copyHighlight: SelectionRange | null = null;
   private listeners = new Set<WorkbookListener>();
 
   constructor(sheets?: SheetSnapshot[]) {
@@ -110,10 +119,8 @@ export class Workbook {
   }
 
   setSelection(selection: SelectionRange[]): void {
-    this.selection = selection.map((s) => ({
-      row: [s.row[0], s.row[1]] as [number, number],
-      column: [s.column[0], s.column[1]] as [number, number],
-    }));
+    const sheet = this.getActiveSheet();
+    this.selection = selection.map((s) => normalizeRange(s, sheet));
     this.emit({ type: "selection", selection: this.selection });
   }
 

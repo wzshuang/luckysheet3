@@ -51,9 +51,9 @@
 
 | 原文件                                   | 能力摘要                  | 新实现位置                                                          | 状态       | 主要缺口                                     |
 | ------------------------------------- | --------------------- | -------------------------------------------------------------- | -------- | ---------------------------------------- |
-| `handler.js`                          | 网格指针/滚轮/双击编辑/选区拖拽等总入口 | `vue/components/GridCanvas.vue` + `core/engine.ts`             | usable   | 行头选行、列头选列、多选区、Shift/Ctrl、右键前逻辑；细节持续对拍    |
-| `keyboard.js`                         | 全套快捷键                 | `GridCanvas.vue` `onKeyDown`                                   | skeleton | 缺大量快捷键（Ctrl+A 可走 selectAll 但未绑、格式、导航扩展等） |
-| `select.js` / `selection.js`          | 选区高亮、名称框、多选           | `engine` setSelection + `canvas-renderer` + `selectionToLabel` | usable   | 多不连续选区、整行整列选中样式                          |
+| `handler.js`                          | 网格指针/滚轮/双击编辑/选区拖拽等总入口 | `vue/components/GridCanvas.vue` + `core/engine.ts`             | usable   | 右键前逻辑；细节持续对拍；公式编辑中选区引用未做 |
+| `keyboard.js`                         | 全套快捷键                 | `GridCanvas.vue` `onKeyDown`                                   | usable   | Ctrl+A/Shift 方向键已绑；仍缺大量格式快捷键 |
+| `select.js` / `selection.js`          | 选区高亮、名称框、多选           | `selection/range.ts` + engine select* + canvas-renderer + selectionToLabel | usable   | **A 档已做** focus/Shift/Ctrl/行列表头/多选绘制；**B 档已做** 复制虚线 + TSV/HTML 粘贴；仍缺格式刷、协同框 |
 | `formulaBar.js`                       | 公式栏                   | `vue/components/FormulaBar.vue`                                | usable   | 公式编辑时选区引用插入、名称框跳转                        |
 | `toolbar.js`                          | 工具栏按钮编排               | `vue/components/Toolbar.vue`                                   | usable   | 见 §5 工具栏细项                               |
 | `menuButton.js`                       | 工具栏下拉 + 右键菜单          | —                                                              | none     | 右键菜单整体缺失                                 |
@@ -215,19 +215,19 @@
 | 3   | 名称框显示 `A1` / `A1:B3` | usable                  | `selectionToLabel` + FormulaBar |
 | 4   | 左上角全选                | usable                  | `hitCorner` + `selectAll`       |
 | 5   | 编辑中点击其他格：提交并改选       | usable                  | `commitEditAndSelect`           |
-| 6   | 行头点击选整行              | none                    |                                 |
-| 7   | 列头点击选整列              | none                    |                                 |
-| 8   | Shift 扩展选区           | none                    |                                 |
-| 9   | Ctrl 多选区             | none                    |                                 |
+| 6   | 行头点击选整行              | usable                  | `hitRowHeader` + `selectRow`    |
+| 7   | 列头点击选整列              | usable                  | `hitColHeader` + `selectColumn` |
+| 8   | Shift 扩展选区           | usable                  | `extendRange` / `selectAt({shift})` |
+| 9   | Ctrl 多选区             | usable                  | `selectAt({ctrl})` + 多块绘制     |
 | 10  | 双击进入编辑               | usable                  |                                 |
 | 11  | 键入字符进入编辑             | usable                  | pendingChar                     |
 | 12  | Enter 提交并下移          | skeleton                | Enter 仅提交，未必下移                  |
 | 13  | Tab 提交并右移            | none                    |                                 |
 | 14  | Esc 取消编辑             | usable                  |                                 |
-| 15  | 方向键移动选区              | usable                  | 编辑态下通常应退出或移动引用                  |
+| 15  | 方向键移动选区              | usable                  | Shift+方向键扩展；编辑态下通常应退出或移动引用 |
 | 16  | Ctrl+C/X/V           | usable                  |                                 |
 | 17  | Ctrl+Z/Y             | usable                  |                                 |
-| 18  | Ctrl+A 全选            | none（API 有 `selectAll`） |                                 |
+| 18  | Ctrl+A 全选            | usable                  | GridCanvas 绑定 `selectAll`      |
 | 19  | Delete 清空            | usable                  |                                 |
 | 20  | 右键菜单                 | none                    |                                 |
 | 21  | 填充柄拖拽                | usable                  |                                 |
@@ -290,9 +290,12 @@ packages/core/src/
   engine.ts              # 对外引擎门面
   command/{types,bus}.ts
   model/{workbook,sheet,cell,cell-key}.ts
+  selection/range.ts     # normalize / extend / overlap / headers
   render/canvas-renderer.ts
   hit/location.ts
   clipboard/clipboard.ts
+  clipboard/serialize.ts
+  clipboard/serialize.ts
   border/borders.ts
   find/find-replace.ts
   format/number-format.ts

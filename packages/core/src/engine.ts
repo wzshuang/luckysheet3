@@ -10,15 +10,28 @@ import {
   buildRowOffsets,
   getCellRect,
   getFillHandleRect,
+  hitColHeader,
   hitColResize,
   hitCorner as isCornerHit,
+  hitRowHeader,
   hitRowResize,
   hitTest,
   type CellRect,
 } from "./hit/location.js";
 import { displayValue } from "./model/cell.js";
 import { extractRange, type ClipboardPayload } from "./clipboard/clipboard.js";
+import {
+  cellsToHtml,
+  cellsToTsv,
+  parseClipboardPayload,
+} from "./clipboard/serialize.js";
 import { collectColumnValues, findNext } from "./find/find-replace.js";
+import {
+  extendRange,
+  getFocusCell,
+  normalizeRange,
+  rangesOverlap,
+} from "./selection/range.js";
 
 export class WorkbookEngine {
   readonly workbook: Workbook;
@@ -26,6 +39,7 @@ export class WorkbookEngine {
   private renderer: CanvasRenderer | null = null;
   private viewport = { width: 800, height: 600 };
   private raf = 0;
+  private copyAnimRaf = 0;
 
   constructor(data?: LuckySheetRaw[] | SheetSnapshot[]) {
     this.workbook = new Workbook();
@@ -94,6 +108,7 @@ export class WorkbookEngine {
   }
 
   detachCanvas(): void {
+    this.stopCopyAnim();
     this.renderer = null;
   }
 
@@ -119,6 +134,27 @@ export class WorkbookEngine {
       this.raf = 0;
       this.paint();
     });
+  }
+
+  private startCopyAnim(): void {
+    this.stopCopyAnim();
+    if (typeof requestAnimationFrame === "undefined") return;
+    const tick = () => {
+      if (!this.workbook.copyHighlight) {
+        this.copyAnimRaf = 0;
+        return;
+      }
+      this.requestPaint();
+      this.copyAnimRaf = requestAnimationFrame(tick);
+    };
+    this.copyAnimRaf = requestAnimationFrame(tick);
+  }
+
+  private stopCopyAnim(): void {
+    if (this.copyAnimRaf && typeof cancelAnimationFrame !== "undefined") {
+      cancelAnimationFrame(this.copyAnimRaf);
+    }
+    this.copyAnimRaf = 0;
   }
 
   private offsets() {
@@ -154,7 +190,159 @@ export class WorkbookEngine {
     const lastCol = Math.max(0, sheet.colCount - 1);
     this.execute({
       type: "setSelection",
-      selection: [{ row: [0, lastRow], column: [0, lastCol] }],
+      selection: [
+        {
+          row: [0, lastRow],
+          column: [0, lastCol],
+          row_focus: 0,
+          column_focus: 0,
+          row_select: true,
+          column_select: true,
+        },
+      ],
+    });
+  }
+
+  getActiveRange(): SelectionRange | null {
+    const list = this.workbook.selection;
+    if (!list.length) return null;
+    return list[list.length - 1];
+  }
+
+  getFocusCell(): { row: number; col: number } | null {
+    const sel = this.getActiveRange();
+    if (!sel) return null;
+    const focus = getFocusCell(sel);
+    const sheet = this.workbook.getActiveSheet();
+    const merge = sheet.getMergeAt(focus.row, focus.col);
+    if (merge) return { row: merge.r, col: merge.c };
+    return focus;
+  }
+
+  /**
+   * Cell click / shift-extend / ctrl-append.
+   * Active range is always the last item in selection[].
+   */
+  selectAt(
+    row: number,
+    col: number,
+    opts?: { shift?: boolean; ctrl?: boolean },
+  ): void {
+    const sheet = this.workbook.getActiveSheet();
+    const shift = !!opts?.shift;
+    const ctrl = !!opts?.ctrl;
+    const current = this.getActiveRange();
+
+    if (shift && current) {
+      const extended = extendRange(current, row, col, sheet);
+      const rest = this.workbook.selection.slice(0, -1);
+      this.execute({
+        type: "setSelection",
+        selection: [...rest, extended],
+      });
+      return;
+    }
+
+    const next = normalizeRange(
+      {
+        row: [row, row],
+        column: [col, col],
+        row_focus: row,
+        column_focus: col,
+      },
+      sheet,
+    );
+
+    if (ctrl && this.workbook.selection.length > 0) {
+      const overlaps = this.workbook.selection.some((s) =>
+        rangesOverlap(s, next),
+      );
+      if (overlaps) {
+        // Overlap with existing: replace all with single cell (Lucky-like simplification)
+        this.execute({ type: "setSelection", selection: [next] });
+      } else {
+        this.execute({
+          type: "setSelection",
+          selection: [...this.workbook.selection, next],
+        });
+      }
+      return;
+    }
+
+    this.execute({ type: "setSelection", selection: [next] });
+  }
+
+  selectRow(
+    row: number,
+    opts?: { shift?: boolean; endRow?: number },
+  ): void {
+    const sheet = this.workbook.getActiveSheet();
+    const lastCol = Math.max(0, sheet.colCount - 1);
+    const end = opts?.endRow ?? row;
+    let r0 = Math.min(row, end);
+    let r1 = Math.max(row, end);
+    let focus = row;
+
+    if (opts?.shift) {
+      const cur = this.getActiveRange();
+      if (cur) {
+        focus = cur.row_focus ?? cur.row[0];
+        r0 = Math.min(focus, end);
+        r1 = Math.max(focus, end);
+      }
+    }
+
+    this.execute({
+      type: "setSelection",
+      selection: [
+        normalizeRange(
+          {
+            row: [r0, r1],
+            column: [0, lastCol],
+            row_focus: focus,
+            column_focus: 0,
+            row_select: true,
+          },
+          sheet,
+        ),
+      ],
+    });
+  }
+
+  selectColumn(
+    col: number,
+    opts?: { shift?: boolean; endCol?: number },
+  ): void {
+    const sheet = this.workbook.getActiveSheet();
+    const lastRow = Math.max(0, sheet.rowCount - 1);
+    const end = opts?.endCol ?? col;
+    let c0 = Math.min(col, end);
+    let c1 = Math.max(col, end);
+    let focus = col;
+
+    if (opts?.shift) {
+      const cur = this.getActiveRange();
+      if (cur) {
+        focus = cur.column_focus ?? cur.column[0];
+        c0 = Math.min(focus, end);
+        c1 = Math.max(focus, end);
+      }
+    }
+
+    this.execute({
+      type: "setSelection",
+      selection: [
+        normalizeRange(
+          {
+            row: [0, lastRow],
+            column: [c0, c1],
+            row_focus: 0,
+            column_focus: focus,
+            column_select: true,
+          },
+          sheet,
+        ),
+      ],
     });
   }
 
@@ -168,8 +356,30 @@ export class WorkbookEngine {
     return hitColResize(sheet, px, py, this.workbook.scrollLeft, colOffsets);
   }
 
+  hitRowHeader(px: number, py: number): number | null {
+    const { sheet, rowOffsets } = this.offsets();
+    return hitRowHeader(
+      sheet,
+      px,
+      py,
+      this.workbook.scrollTop,
+      rowOffsets,
+    );
+  }
+
+  hitColHeader(px: number, py: number): number | null {
+    const { sheet, colOffsets } = this.offsets();
+    return hitColHeader(
+      sheet,
+      px,
+      py,
+      this.workbook.scrollLeft,
+      colOffsets,
+    );
+  }
+
   getFillHandleAt(px: number, py: number): boolean {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return false;
     const { sheet, rowOffsets, colOffsets } = this.offsets();
     const h = getFillHandleRect(
@@ -226,9 +436,9 @@ export class WorkbookEngine {
   }
 
   startEdit(row?: number, col?: number): void {
-    const sel = this.workbook.selection[0];
-    const r = row ?? sel?.row[0] ?? 0;
-    const c = col ?? sel?.column[0] ?? 0;
+    const focus = this.getFocusCell();
+    const r = row ?? focus?.row ?? 0;
+    const c = col ?? focus?.col ?? 0;
     this.workbook.setEditing(true, r, c);
     this.workbook.editDraft = this.getEditText();
   }
@@ -263,10 +473,7 @@ export class WorkbookEngine {
     if (this.workbook.editing) {
       this.commitEdit(text);
     }
-    this.execute({
-      type: "setSelection",
-      selection: [{ row: [row, row], column: [col, col] }],
-    });
+    this.selectAt(row, col);
   }
 
   cancelEdit(): void {
@@ -283,7 +490,7 @@ export class WorkbookEngine {
   applyStyleToSelection(
     style: Partial<Pick<CellData, "bg" | "fc" | "bl" | "it" | "fs" | "ff" | "ht" | "vt">>,
   ): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     const r0 = Math.min(sel.row[0], sel.row[1]);
     const r1 = Math.max(sel.row[0], sel.row[1]);
@@ -298,18 +505,15 @@ export class WorkbookEngine {
 
   /** Toggle bold / italic on selection using first cell as reference */
   toggleStyleOnSelection(key: "bl" | "it"): void {
-    const sel = this.workbook.selection[0];
-    if (!sel) return;
-    const cell = this.workbook.getCell(
-      Math.min(sel.row[0], sel.row[1]),
-      Math.min(sel.column[0], sel.column[1]),
-    );
+    const focus = this.getFocusCell();
+    if (!focus) return;
+    const cell = this.workbook.getCell(focus.row, focus.col);
     const next = cell?.[key] ? 0 : 1;
     this.applyStyleToSelection({ [key]: next });
   }
 
   applyFormatToSelection(preset: import("./format/number-format.js").FormatPresetId): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     const r0 = Math.min(sel.row[0], sel.row[1]);
     const r1 = Math.max(sel.row[0], sel.row[1]);
@@ -323,7 +527,7 @@ export class WorkbookEngine {
   }
 
   clearFormatOnSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     const r0 = Math.min(sel.row[0], sel.row[1]);
     const r1 = Math.max(sel.row[0], sel.row[1]);
@@ -337,16 +541,13 @@ export class WorkbookEngine {
   }
 
   getActiveCellStyle(): Partial<CellData> | null {
-    const sel = this.workbook.selection[0];
-    if (!sel) return null;
-    return this.workbook.getCell(
-      Math.min(sel.row[0], sel.row[1]),
-      Math.min(sel.column[0], sel.column[1]),
-    );
+    const focus = this.getFocusCell();
+    if (!focus) return null;
+    return this.workbook.getCell(focus.row, focus.col);
   }
 
   mergeSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     const r0 = Math.min(sel.row[0], sel.row[1]);
     const r1 = Math.max(sel.row[0], sel.row[1]);
@@ -363,7 +564,7 @@ export class WorkbookEngine {
   }
 
   unmergeSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.execute({
       type: "unmergeCells",
@@ -373,7 +574,7 @@ export class WorkbookEngine {
   }
 
   insertRowsAtSelection(count = 1): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.execute({
       type: "insertRows",
@@ -383,7 +584,7 @@ export class WorkbookEngine {
   }
 
   deleteRowsAtSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     const r0 = Math.min(sel.row[0], sel.row[1]);
     const r1 = Math.max(sel.row[0], sel.row[1]);
@@ -391,7 +592,7 @@ export class WorkbookEngine {
   }
 
   insertColsAtSelection(count = 1): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.execute({
       type: "insertCols",
@@ -401,7 +602,7 @@ export class WorkbookEngine {
   }
 
   deleteColsAtSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     const c0 = Math.min(sel.column[0], sel.column[1]);
     const c1 = Math.max(sel.column[0], sel.column[1]);
@@ -409,28 +610,60 @@ export class WorkbookEngine {
   }
 
   copySelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.workbook.clipboard = {
       cells: extractRange(this.workbook.getActiveSheet(), sel),
       from: sel,
       cut: false,
     };
+    this.setCopyHighlight(sel);
   }
 
   cutSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.workbook.clipboard = {
       cells: extractRange(this.workbook.getActiveSheet(), sel),
       from: sel,
       cut: true,
     };
+    this.setCopyHighlight(sel);
+  }
+
+  /** TSV for `navigator.clipboard.writeText` / text/plain ClipboardItem. */
+  getClipboardTsv(): string | null {
+    const clip = this.workbook.clipboard;
+    if (!clip) return null;
+    return cellsToTsv(clip.cells);
+  }
+
+  /** HTML table for text/html ClipboardItem (Excel / Sheets). */
+  getClipboardHtml(): string | null {
+    const clip = this.workbook.clipboard;
+    if (!clip) return null;
+    return cellsToHtml(clip.cells);
+  }
+
+  setCopyHighlight(range: SelectionRange | null): void {
+    this.workbook.copyHighlight = range;
+    this.workbook.emit({
+      type: "change",
+      sheetIndex: this.workbook.activeIndex,
+    });
+    this.requestPaint();
+    if (range) this.startCopyAnim();
+    else this.stopCopyAnim();
+  }
+
+  clearCopyHighlight(): void {
+    if (!this.workbook.copyHighlight) return;
+    this.setCopyHighlight(null);
   }
 
   pasteAtSelection(): void {
     const clip = this.workbook.clipboard;
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!clip || !sel) return;
     const clearSource = clip.cut
       ? {
@@ -447,11 +680,31 @@ export class WorkbookEngine {
       cells: clip.cells,
       clearSource,
     });
-    if (clip.cut) this.workbook.clipboard = null;
+    if (clip.cut) {
+      this.workbook.clipboard = null;
+      this.clearCopyHighlight();
+    }
+  }
+
+  /**
+   * Paste from system clipboard (TSV / HTML table) when there is no
+   * in-memory payload, or when the caller explicitly wants external data.
+   */
+  pasteFromExternal(input: { html?: string; text?: string }): boolean {
+    const cells = parseClipboardPayload(input);
+    const sel = this.getActiveRange();
+    if (!cells || !sel) return false;
+    this.execute({
+      type: "pasteCells",
+      anchorRow: Math.min(sel.row[0], sel.row[1]),
+      anchorCol: Math.min(sel.column[0], sel.column[1]),
+      cells,
+    });
+    return true;
   }
 
   fillTo(to: SelectionRange): void {
-    const from = this.workbook.selection[0];
+    const from = this.getActiveRange();
     if (!from) return;
     this.execute({ type: "fillCells", from, to });
     this.execute({ type: "setSelection", selection: [to] });
@@ -462,7 +715,7 @@ export class WorkbookEngine {
   }
 
   freezeSelection(): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.setFreeze(
       Math.min(sel.row[0], sel.row[1]),
@@ -471,17 +724,14 @@ export class WorkbookEngine {
   }
 
   findNext(query: string, matchCase = false): { row: number; col: number } | null {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     const hit = findNext(this.workbook, query, {
       matchCase,
       afterRow: sel ? Math.min(sel.row[0], sel.row[1]) : 0,
       afterCol: sel ? Math.min(sel.column[0], sel.column[1]) : -1,
     });
     if (hit) {
-      this.execute({
-        type: "setSelection",
-        selection: [{ row: [hit.row, hit.row], column: [hit.col, hit.col] }],
-      });
+      this.selectAt(hit.row, hit.col);
     }
     return hit;
   }
@@ -503,7 +753,7 @@ export class WorkbookEngine {
     color = "#000000",
     style = 1,
   ): void {
-    const sel = this.workbook.selection[0];
+    const sel = this.getActiveRange();
     if (!sel) return;
     this.execute({ type: "setBorders", range: sel, mode, color, style });
   }

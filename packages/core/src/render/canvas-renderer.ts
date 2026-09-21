@@ -14,6 +14,10 @@ import {
   searchOffset,
 } from "../hit/location.js";
 import { colToLetter } from "../model/cell-key.js";
+import {
+  aggregateRowColHeaders,
+  getFocusCell,
+} from "../selection/range.js";
 
 export type RenderViewport = {
   width: number;
@@ -158,6 +162,30 @@ export class CanvasRenderer {
 
     for (let r = 0; r < freeze.row; r++) paintRowHeader(r, false);
 
+    // Row/col header selection highlight (selectTitlesShow)
+    const headerAgg = aggregateRowColHeaders(this.workbook.selection);
+    ctx.fillStyle = "rgba(76, 76, 76, 0.1)";
+    for (const [r0, r1] of headerAgg.rows) {
+      const y0 = COL_HEADER_HEIGHT + rowTop(this.rowOffsets, r0) - (r0 < freeze.row ? 0 : scrollTop);
+      const y1 =
+        COL_HEADER_HEIGHT +
+        (this.rowOffsets[r1] ?? 0) -
+        (r1 < freeze.row ? 0 : scrollTop);
+      if (y1 > COL_HEADER_HEIGHT && y0 < h) {
+        ctx.fillRect(0, Math.max(COL_HEADER_HEIGHT, y0), ROW_HEADER_WIDTH, y1 - Math.max(COL_HEADER_HEIGHT, y0));
+      }
+    }
+    for (const [c0, c1] of headerAgg.cols) {
+      const x0 = ROW_HEADER_WIDTH + colLeft(this.colOffsets, c0) - (c0 < freeze.col ? 0 : scrollLeft);
+      const x1 =
+        ROW_HEADER_WIDTH +
+        (this.colOffsets[c1] ?? 0) -
+        (c1 < freeze.col ? 0 : scrollLeft);
+      if (x1 > ROW_HEADER_WIDTH && x0 < w) {
+        ctx.fillRect(Math.max(ROW_HEADER_WIDTH, x0), 0, x1 - Math.max(ROW_HEADER_WIDTH, x0), COL_HEADER_HEIGHT);
+      }
+    }
+
     ctx.fillStyle = "#f0f0f0";
     ctx.fillRect(0, 0, ROW_HEADER_WIDTH, COL_HEADER_HEIGHT);
 
@@ -269,8 +297,10 @@ export class CanvasRenderer {
     ctx.rect(ROW_HEADER_WIDTH, COL_HEADER_HEIGHT, w - ROW_HEADER_WIDTH, h - COL_HEADER_HEIGHT);
     ctx.clip();
 
-    const sel = this.workbook.selection[0];
-    if (sel) {
+    const selections = this.workbook.selection;
+    const lastIdx = selections.length - 1;
+    for (let i = 0; i < selections.length; i++) {
+      const sel = selections[i];
       const r0 = Math.min(sel.row[0], sel.row[1]);
       const r1 = Math.max(sel.row[0], sel.row[1]);
       const c0 = Math.min(sel.column[0], sel.column[1]);
@@ -297,20 +327,87 @@ export class CanvasRenderer {
       const sy = topLeft.y;
       const sw = bottomRight.x + bottomRight.width - sx;
       const sh = bottomRight.y + bottomRight.height - sy;
-      ctx.fillStyle = "rgba(1, 136, 251, 0.08)";
+      const isActive = i === lastIdx;
+
+      ctx.fillStyle = isActive
+        ? "rgba(1, 136, 251, 0.08)"
+        : "rgba(1, 136, 251, 0.05)";
       ctx.fillRect(sx, sy, sw, sh);
-      ctx.strokeStyle = "#0188fb";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = isActive ? "#0188fb" : "rgba(1, 136, 251, 0.35)";
+      ctx.lineWidth = isActive ? 2 : 1;
       ctx.strokeRect(sx + 1, sy + 1, sw - 2, sh - 2);
       ctx.lineWidth = 1;
-      const handleSize = 6;
-      ctx.fillStyle = "#0188fb";
-      ctx.fillRect(
-        sx + sw - handleSize / 2,
-        sy + sh - handleSize / 2,
-        handleSize,
-        handleSize,
+
+      if (isActive) {
+        // Focus cell (merge-aware)
+        const focus = getFocusCell(sel);
+        const merge = sheet.getMergeAt(focus.row, focus.col);
+        const fr = merge?.r ?? focus.row;
+        const fc = merge?.c ?? focus.col;
+        const focusRect = getCellRect(
+          sheet,
+          fr,
+          fc,
+          this.rowOffsets,
+          this.colOffsets,
+          scrollLeft,
+          scrollTop,
+        );
+        ctx.strokeStyle = "rgba(1, 136, 251, 0.45)";
+        ctx.strokeRect(
+          focusRect.x + 2,
+          focusRect.y + 2,
+          focusRect.width - 4,
+          focusRect.height - 4,
+        );
+
+        const handleSize = 6;
+        ctx.fillStyle = "#0188fb";
+        ctx.fillRect(
+          sx + sw - handleSize / 2,
+          sy + sh - handleSize / 2,
+          handleSize,
+          handleSize,
+        );
+      }
+    }
+
+    // Copy / cut marching ants (selectionCopyShow)
+    const copy = this.workbook.copyHighlight;
+    if (copy) {
+      const r0 = Math.min(copy.row[0], copy.row[1]);
+      const r1 = Math.max(copy.row[0], copy.row[1]);
+      const c0 = Math.min(copy.column[0], copy.column[1]);
+      const c1 = Math.max(copy.column[0], copy.column[1]);
+      const topLeft = getCellRect(
+        sheet,
+        r0,
+        c0,
+        this.rowOffsets,
+        this.colOffsets,
+        scrollLeft,
+        scrollTop,
       );
+      const bottomRight = getCellRect(
+        sheet,
+        r1,
+        c1,
+        this.rowOffsets,
+        this.colOffsets,
+        scrollLeft,
+        scrollTop,
+      );
+      const sx = topLeft.x;
+      const sy = topLeft.y;
+      const sw = bottomRight.x + bottomRight.width - sx;
+      const sh = bottomRight.y + bottomRight.height - sy;
+      ctx.save();
+      ctx.strokeStyle = "#0188fb";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.lineDashOffset = -((Date.now() / 40) % 7);
+      ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
+      ctx.restore();
     }
 
     if (freeze.row > 0) {

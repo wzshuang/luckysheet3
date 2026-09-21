@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { WorkbookEngine } from "../src/engine.js";
+import {
+  cellsToHtml,
+  cellsToTsv,
+  parseClipboardPayload,
+  parseHtmlTable,
+  parseTsv,
+} from "../src/clipboard/serialize.js";
 
 describe("clipboard fill series", () => {
   it("fill numeric series downward", () => {
@@ -63,15 +70,20 @@ describe("clipboard copy/cut", () => {
       selection: [{ row: [0, 0], column: [0, 0] }],
     });
     eng.copySelection();
+    expect(eng.workbook.copyHighlight).toEqual(
+      expect.objectContaining({ row: [0, 0], column: [0, 0] }),
+    );
     eng.execute({
       type: "setSelection",
       selection: [{ row: [2, 2], column: [1, 1] }],
     });
     eng.pasteAtSelection();
     expect(eng.getCellValue(2, 1)).toBe(1);
+    // copy paste keeps marching ants
+    expect(eng.workbook.copyHighlight).not.toBeNull();
   });
 
-  it("cut clears source", () => {
+  it("cut clears source and highlight", () => {
     const eng = new WorkbookEngine();
     eng.execute({ type: "setCellValue", row: 0, col: 0, value: "x" });
     eng.execute({
@@ -79,6 +91,7 @@ describe("clipboard copy/cut", () => {
       selection: [{ row: [0, 0], column: [0, 0] }],
     });
     eng.cutSelection();
+    expect(eng.workbook.copyHighlight).not.toBeNull();
     eng.execute({
       type: "setSelection",
       selection: [{ row: [1, 1], column: [0, 0] }],
@@ -86,5 +99,97 @@ describe("clipboard copy/cut", () => {
     eng.pasteAtSelection();
     expect(eng.getCellValue(1, 0)).toBe("x");
     expect(eng.getCellValue(0, 0)).toBeNull();
+    expect(eng.workbook.copyHighlight).toBeNull();
+    expect(eng.workbook.clipboard).toBeNull();
+  });
+
+  it("Esc clears copy highlight", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [0, 1], column: [0, 1] }],
+    });
+    eng.copySelection();
+    eng.clearCopyHighlight();
+    expect(eng.workbook.copyHighlight).toBeNull();
+  });
+});
+
+describe("TSV / HTML clipboard", () => {
+  it("round-trips TSV", () => {
+    const cells = [
+      [
+        { v: 1, m: "1", ct: { fa: "General", t: "n" as const } },
+        { v: "a", m: "a", ct: { fa: "General", t: "g" as const } },
+      ],
+      [null, { v: "b\tc", m: "b\tc", ct: { fa: "General", t: "g" as const } }],
+    ];
+    const tsv = cellsToTsv(cells);
+    expect(tsv).toContain("1\ta");
+    const parsed = parseTsv(tsv);
+    expect(parsed[0][0]?.v).toBe(1);
+    expect(parsed[0][1]?.v).toBe("a");
+    expect(parsed[1][1]?.v).toBe("b\tc");
+  });
+
+  it("parses Excel-like HTML table", () => {
+    const html =
+      "<html><body><table><tr><td>1</td><td>hello</td></tr><tr><td></td><td>2</td></tr></table></body></html>";
+    const parsed = parseHtmlTable(html);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0][0]?.v).toBe(1);
+    expect(parsed[0][1]?.v).toBe("hello");
+    expect(parsed[1][0]).toBeNull();
+    expect(parsed[1][1]?.v).toBe(2);
+  });
+
+  it("cellsToHtml wraps table", () => {
+    const html = cellsToHtml([
+      [{ v: "x", m: "x", ct: { fa: "General", t: "g" } }],
+    ]);
+    expect(html).toBe("<table><tr><td>x</td></tr></table>");
+  });
+
+  it("pasteFromExternal TSV into grid", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [1, 1], column: [1, 1] }],
+    });
+    const ok = eng.pasteFromExternal({ text: "A\tB\nC\tD" });
+    expect(ok).toBe(true);
+    expect(eng.getCellValue(1, 1)).toBe("A");
+    expect(eng.getCellValue(1, 2)).toBe("B");
+    expect(eng.getCellValue(2, 1)).toBe("C");
+    expect(eng.getCellValue(2, 2)).toBe("D");
+  });
+
+  it("pasteFromExternal prefers HTML over text", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [0, 0], column: [0, 0] }],
+    });
+    eng.pasteFromExternal({
+      html: "<table><tr><td>from-html</td></tr></table>",
+      text: "from-text",
+    });
+    expect(eng.getCellValue(0, 0)).toBe("from-html");
+  });
+
+  it("parseClipboardPayload returns null for empty", () => {
+    expect(parseClipboardPayload({})).toBeNull();
+  });
+
+  it("getClipboardTsv/Html after copy", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({ type: "setCellValue", row: 0, col: 0, value: "hi" });
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [0, 0], column: [0, 0] }],
+    });
+    eng.copySelection();
+    expect(eng.getClipboardTsv()).toBe("hi");
+    expect(eng.getClipboardHtml()).toContain("<td>hi</td>");
   });
 });

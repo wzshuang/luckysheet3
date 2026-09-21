@@ -15,7 +15,9 @@ let filling = false;
 let fillFrom: SelectionRange | null = null;
 let resizing: { kind: "row" | "col"; index: number; start: number; size: number } | null =
   null;
+let headerDrag: { kind: "row" | "col"; start: number } | null = null;
 let anchor = { row: 0, col: 0 };
+let mods = { shift: false, ctrl: false };
 let resizeObs: ResizeObserver | null = null;
 
 function measure() {
@@ -59,12 +61,27 @@ function localPos(e: PointerEvent) {
 function onPointerDown(e: PointerEvent) {
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   const { x, y } = localPos(e);
+  mods = { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
 
   // While editing: commit draft and select the clicked cell (Lucky/Excel behavior)
   if (props.engine.editing) {
     if (props.engine.hitCorner(x, y)) {
       props.engine.commitEdit();
       props.engine.selectAll();
+      wrapRef.value?.focus();
+      return;
+    }
+    const rowH = props.engine.hitRowHeader(x, y);
+    if (rowH != null) {
+      props.engine.commitEdit();
+      props.engine.selectRow(rowH);
+      wrapRef.value?.focus();
+      return;
+    }
+    const colH = props.engine.hitColHeader(x, y);
+    if (colH != null) {
+      props.engine.commitEdit();
+      props.engine.selectColumn(colH);
       wrapRef.value?.focus();
       return;
     }
@@ -106,8 +123,24 @@ function onPointerDown(e: PointerEvent) {
     return;
   }
 
+  const rowHeader = props.engine.hitRowHeader(x, y);
+  if (rowHeader != null) {
+    headerDrag = { kind: "row", start: rowHeader };
+    props.engine.selectRow(rowHeader, { shift: mods.shift });
+    wrapRef.value?.focus();
+    return;
+  }
+
+  const colHeader = props.engine.hitColHeader(x, y);
+  if (colHeader != null) {
+    headerDrag = { kind: "col", start: colHeader };
+    props.engine.selectColumn(colHeader, { shift: mods.shift });
+    wrapRef.value?.focus();
+    return;
+  }
+
   if (props.engine.getFillHandleAt(x, y)) {
-    const sel = props.engine.selection[0];
+    const sel = props.engine.getActiveRange();
     if (sel) {
       fillFrom = {
         row: [Math.min(sel.row[0], sel.row[1]), Math.max(sel.row[0], sel.row[1])],
@@ -115,6 +148,8 @@ function onPointerDown(e: PointerEvent) {
           Math.min(sel.column[0], sel.column[1]),
           Math.max(sel.column[0], sel.column[1]),
         ],
+        row_focus: sel.row_focus,
+        column_focus: sel.column_focus,
       };
       filling = true;
     }
@@ -125,10 +160,7 @@ function onPointerDown(e: PointerEvent) {
   if (!hit) return;
   selecting = true;
   anchor = hit;
-  props.engine.execute({
-    type: "setSelection",
-    selection: [{ row: [hit.row, hit.row], column: [hit.col, hit.col] }],
-  });
+  props.engine.selectAt(hit.row, hit.col, { shift: mods.shift, ctrl: mods.ctrl });
   wrapRef.value?.focus();
 }
 
@@ -150,6 +182,20 @@ function onPointerMove(e: PointerEvent) {
     }
     return;
   }
+  if (headerDrag) {
+    if (headerDrag.kind === "row") {
+      const row = props.engine.hitRowHeader(x, y);
+      if (row != null) {
+        props.engine.selectRow(headerDrag.start, { endRow: row });
+      }
+    } else {
+      const col = props.engine.hitColHeader(x, y);
+      if (col != null) {
+        props.engine.selectColumn(headerDrag.start, { endCol: col });
+      }
+    }
+    return;
+  }
   if (filling && fillFrom) {
     const hit = props.engine.hitTest(x, y);
     if (!hit) return;
@@ -159,6 +205,8 @@ function onPointerMove(e: PointerEvent) {
         {
           row: [fillFrom.row[0], hit.row],
           column: [fillFrom.column[0], hit.col],
+          row_focus: fillFrom.row_focus ?? fillFrom.row[0],
+          column_focus: fillFrom.column_focus ?? fillFrom.column[0],
         },
       ],
     });
@@ -167,12 +215,17 @@ function onPointerMove(e: PointerEvent) {
   if (!selecting) return;
   const hit = props.engine.hitTest(x, y);
   if (!hit) return;
+  // Drag expands from mousedown anchor (focus stays at anchor)
+  const rest = props.engine.selection.slice(0, -1);
   props.engine.execute({
     type: "setSelection",
     selection: [
+      ...rest,
       {
         row: [anchor.row, hit.row],
         column: [anchor.col, hit.col],
+        row_focus: anchor.row,
+        column_focus: anchor.col,
       },
     ],
   });
@@ -180,7 +233,7 @@ function onPointerMove(e: PointerEvent) {
 
 function onPointerUp() {
   if (filling && fillFrom) {
-    const sel = props.engine.selection[0];
+    const sel = props.engine.getActiveRange();
     if (sel) {
       props.engine.execute({ type: "fillCells", from: fillFrom, to: sel });
     }
@@ -189,6 +242,8 @@ function onPointerUp() {
   filling = false;
   fillFrom = null;
   resizing = null;
+  headerDrag = null;
+  mods = { shift: false, ctrl: false };
 }
 
 function onDblClick() {
@@ -204,32 +259,98 @@ function onWheel(e: WheelEvent) {
   });
 }
 
+async function writeSystemClipboard(): Promise<void> {
+  const text = props.engine.getClipboardTsv();
+  const html = props.engine.getClipboardHtml();
+  if (text == null) return;
+  try {
+    const nav = navigator.clipboard;
+    if (nav && "write" in nav && typeof ClipboardItem !== "undefined" && html) {
+      await nav.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+      return;
+    }
+    if (nav?.writeText) await nav.writeText(text);
+  } catch {
+    // Permission / insecure context — in-memory clipboard still works
+  }
+}
+
+async function pasteWithSystemClipboard(): Promise<void> {
+  // Prefer styled in-memory payload when we copied inside the app
+  if (props.engine.workbook.clipboard) {
+    props.engine.pasteAtSelection();
+    return;
+  }
+  try {
+    const nav = navigator.clipboard;
+    if (nav && "read" in nav) {
+      const items = await nav.read();
+      let html: string | undefined;
+      let text: string | undefined;
+      for (const item of items) {
+        if (item.types.includes("text/html")) {
+          html = await (await item.getType("text/html")).text();
+        }
+        if (item.types.includes("text/plain")) {
+          text = await (await item.getType("text/plain")).text();
+        }
+      }
+      if (props.engine.pasteFromExternal({ html, text })) return;
+    } else if (nav?.readText) {
+      const text = await nav.readText();
+      if (props.engine.pasteFromExternal({ text })) return;
+    }
+  } catch {
+    // fall through
+  }
+  props.engine.pasteAtSelection();
+}
+
 function onKeyDown(e: KeyboardEvent) {
   if (!wrapRef.value?.contains(document.activeElement) && document.activeElement !== wrapRef.value) {
     return;
   }
   if (props.engine.editing) return;
 
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+    e.preventDefault();
+    props.engine.selectAll();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
     e.preventDefault();
     props.engine.copySelection();
+    void writeSystemClipboard();
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
     e.preventDefault();
     props.engine.cutSelection();
+    void writeSystemClipboard();
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
     e.preventDefault();
-    props.engine.pasteAtSelection();
+    void pasteWithSystemClipboard();
     return;
   }
+  if (e.key === "Escape") {
+    if (props.engine.workbook.copyHighlight) {
+      e.preventDefault();
+      props.engine.clearCopyHighlight();
+      return;
+    }
+  }
 
-  const sel = props.engine.selection[0];
-  if (!sel) return;
-  let r = sel.row[0];
-  let c = sel.column[0];
+  const focus = props.engine.getFocusCell();
+  if (!focus) return;
+  let r = focus.row;
+  let c = focus.col;
 
   if (e.key === "ArrowUp") {
     e.preventDefault();
@@ -269,10 +390,11 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   }
 
-  props.engine.execute({
-    type: "setSelection",
-    selection: [{ row: [r, r], column: [c, c] }],
-  });
+  if (e.shiftKey) {
+    props.engine.selectAt(r, c, { shift: true });
+  } else {
+    props.engine.selectAt(r, c);
+  }
 }
 
 defineExpose({ pendingChar });

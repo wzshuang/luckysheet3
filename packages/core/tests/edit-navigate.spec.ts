@@ -16,7 +16,7 @@ describe("edit then click another cell", () => {
 
     expect(eng.editing).toBe(false);
     expect(eng.getCellValue(0, 0)).toBe("hello");
-    expect(eng.selection[0]).toEqual({ row: [1, 1], column: [0, 0] });
+    expect(eng.selection[0]).toMatchObject({ row: [1, 1], column: [0, 0] });
     expect(eng.getCellValue(1, 0)).toBeNull();
   });
 
@@ -26,7 +26,7 @@ describe("edit then click another cell", () => {
     eng.setEditDraft("typed");
     eng.commitEditAndSelect(0, 1);
     expect(eng.getCellValue(0, 0)).toBe("typed");
-    expect(eng.selection[0]).toEqual({ row: [0, 0], column: [1, 1] });
+    expect(eng.selection[0]).toMatchObject({ row: [0, 0], column: [1, 1] });
   });
 
   it("commitEdit is idempotent after already committed", () => {
@@ -42,6 +42,6 @@ describe("edit then click another cell", () => {
     eng.execute({ type: "setCellValue", row: 0, col: 0, value: "keep" });
     eng.commitEditAndSelect(2, 2);
     expect(eng.getCellValue(0, 0)).toBe("keep");
-    expect(eng.selection[0]).toEqual({ row: [2, 2], column: [2, 2] });
+    expect(eng.selection[0]).toMatchObject({ row: [2, 2], column: [2, 2] });
   });
 });
