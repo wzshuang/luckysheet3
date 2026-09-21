@@ -16,7 +16,8 @@
   "files": ["dist"],
   "scripts": {
     "build": "vite build && vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
-    "typecheck": "vue-tsc -p tsconfig.json --noEmit"
+    "typecheck": "vue-tsc -p tsconfig.json --noEmit",
+    "test": "node --test tests/toolbar-style.test.mjs"
   },
   "peerDependencies": {
     "vue": "^3.5.0"
