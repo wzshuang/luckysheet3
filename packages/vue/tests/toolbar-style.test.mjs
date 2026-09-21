@@ -52,3 +52,22 @@ describe("iconfont asset", () => {
     }
   });
 });
+
+const toolbarCssPath = path.join(root, "src/styles/toolbar.css");
+const indexPath = path.join(root, "src/index.ts");
+
+describe("toolbar.css tokens", () => {
+  it("imports iconfont and uses original chrome tokens", () => {
+    const css = fs.readFileSync(toolbarCssPath, "utf8");
+    const indexSrc = fs.readFileSync(indexPath, "utf8");
+    assert.match(indexSrc, /import "\.\/styles\/toolbar\.css"/);
+    assert.match(css, /@import "\.\.\/assets\/iconfont\/iconfont\.css"/);
+    assert.match(css, /background:\s*#fafafc/);
+    assert.match(css, /border-bottom:\s*1px solid #d4d4d4/);
+    assert.match(css, /height:\s*26px/);
+    assert.match(css, /border-radius:\s*2px/);
+    assert.match(css, /rgba\(0,\s*0,\s*0,\s*\.06\)/);
+    assert.match(css, /rgba\(0,\s*0,\s*0,\s*\.12\)/);
+    assert.doesNotMatch(css, /#e6f4ff/);
+  });
+});

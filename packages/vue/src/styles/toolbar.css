@@ -1,0 +1,196 @@
+@import "../assets/iconfont/iconfont.css";
+
+.ls3-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 5px 0 3px 15px;
+  background: #fafafc;
+  border-bottom: 1px solid #d4d4d4;
+  color: #333;
+  box-sizing: border-box;
+}
+
+.ls3-toolbar,
+.ls3-toolbar * {
+  box-sizing: border-box;
+}
+
+.ls3-toolbar .iconfont-luckysheet {
+  font-size: 24px;
+  line-height: 26px;
+}
+
+.ls3-toolbar .luckysheet-iconfont-xiayige {
+  font-size: 12px;
+  line-height: 26px;
+}
+
+.ls3-toolbar__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  margin: 0 1px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #333;
+  cursor: default;
+  outline: none;
+}
+
+.ls3-toolbar__btn:hover,
+.ls3-toolbar__btn.is-on,
+.ls3-toolbar__btn:focus-visible {
+  background: rgba(0, 0, 0, .06);
+  cursor: pointer;
+}
+
+.ls3-toolbar__btn:active {
+  background: rgba(0, 0, 0, .12);
+  cursor: pointer;
+}
+
+.ls3-toolbar__btn:disabled,
+.ls3-toolbar__btn:disabled:hover,
+.ls3-toolbar__btn:disabled:active {
+  opacity: 0.4;
+  background: transparent;
+  cursor: default;
+}
+
+.ls3-toolbar__icon {
+  display: block;
+  width: 26px;
+  height: 26px;
+  text-align: center;
+}
+
+.ls3-toolbar__sep {
+  width: 0;
+  height: 20px;
+  margin: 5px 1px;
+  border-left: 1px solid #e0e0e0;
+}
+
+.ls3-toolbar__split {
+  position: relative;
+  display: inline-flex;
+  height: 26px;
+  margin: 0 1px;
+}
+
+.ls3-toolbar__split-left,
+.ls3-toolbar__split-right {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.ls3-toolbar__split-left {
+  min-width: 26px;
+  border-radius: 2px 0 0 2px;
+}
+
+.ls3-toolbar__split-right {
+  min-width: 14px;
+  padding: 0 2px;
+  border-radius: 0 2px 2px 0;
+}
+
+.ls3-toolbar__split:hover .ls3-toolbar__split-left,
+.ls3-toolbar__split:hover .ls3-toolbar__split-right,
+.ls3-toolbar__split:focus-within .ls3-toolbar__split-left,
+.ls3-toolbar__split:focus-within .ls3-toolbar__split-right {
+  background: rgba(0, 0, 0, .06);
+}
+
+.ls3-toolbar__split:hover .ls3-toolbar__split-right,
+.ls3-toolbar__split:focus-within .ls3-toolbar__split-right {
+  border-left-color: rgba(0, 0, 0, .12);
+}
+
+.ls3-toolbar__swatch {
+  position: relative;
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
+.ls3-toolbar__color-bar {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 2px;
+  height: 3px;
+  width: 55%;
+  margin: 0 auto;
+}
+
+.ls3-toolbar__color-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ls3-toolbar__combo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  margin: 0 1px;
+  padding: 0 4px 0 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #333;
+}
+
+.ls3-toolbar__combo:hover,
+.ls3-toolbar__combo:focus-within {
+  background: rgba(0, 0, 0, .06);
+}
+
+.ls3-toolbar__combo--size .ls3-toolbar__combo-value {
+  width: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ls3-toolbar__combo--format .ls3-toolbar__combo-value {
+  width: 55px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ls3-toolbar__combo-select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
