@@ -71,3 +71,17 @@ describe("toolbar.css tokens", () => {
     assert.doesNotMatch(css, /#e6f4ff/);
   });
 });
+
+const buttonPath = path.join(root, "src/components/ToolbarButton.vue");
+
+describe("ToolbarButton.vue", () => {
+  it("renders icon class from short name and has no default text slot", () => {
+    const sfc = fs.readFileSync(buttonPath, "utf8");
+    assert.match(sfc, /defineProps/);
+    assert.match(sfc, /luckysheet-iconfont-\$\{icon\}/);
+    assert.match(sfc, /ls3-toolbar__btn/);
+    assert.match(sfc, /is-on/);
+    assert.match(sfc, /type="button"/);
+    assert.doesNotMatch(sfc, /<slot/);
+  });
+});
