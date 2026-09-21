@@ -4,20 +4,16 @@ import type { CellBorder } from "../model/cell.js";
 import {
   buildColOffsets,
   buildRowOffsets,
-  colLeft,
   COL_HEADER_HEIGHT,
   contentSize,
   freezeBandSize,
   getCellRect,
   ROW_HEADER_WIDTH,
-  rowTop,
   searchOffset,
+  type CellRect,
 } from "../hit/location.js";
-import { colToLetter } from "../model/cell-key.js";
-import {
-  aggregateRowColHeaders,
-  getFocusCell,
-} from "../selection/range.js";
+import { getFocusCell } from "../selection/range.js";
+import { visibleCellRange } from "../layout/visible-range.js";
 
 function textDecorationLineYs(
   ty: number,
@@ -113,132 +109,55 @@ export class CanvasRenderer {
     const freeze = sheet.config.freeze ?? { row: 0, col: 0 };
     const band = freezeBandSize(sheet, this.rowOffsets, this.colOffsets);
 
-    const scrollStartCol = Math.max(
-      freeze.col,
-      searchOffset(this.colOffsets, scrollLeft + band.width),
-    );
-    const endCol = Math.min(
-      sheet.colCount - 1,
-      searchOffset(this.colOffsets, scrollLeft + w - ROW_HEADER_WIDTH) + 1,
-    );
-    const scrollStartRow = Math.max(
-      freeze.row,
-      searchOffset(this.rowOffsets, scrollTop + band.height),
-    );
-    const endRow = Math.min(
-      sheet.rowCount - 1,
-      searchOffset(this.rowOffsets, scrollTop + h - COL_HEADER_HEIGHT) + 1,
-    );
+    const gx = ROW_HEADER_WIDTH;
+    const gy = COL_HEADER_HEIGHT;
 
-    ctx.fillStyle = "#f5f5f5";
-    ctx.fillRect(0, 0, w, COL_HEADER_HEIGHT);
-    ctx.strokeStyle = "#d4d4d4";
-    ctx.beginPath();
-    ctx.moveTo(0, COL_HEADER_HEIGHT - 0.5);
-    ctx.lineTo(w, COL_HEADER_HEIGHT - 0.5);
-    ctx.stroke();
+    const toSurface = (rect: CellRect): CellRect => ({
+      ...rect,
+      x: rect.x - gx,
+      y: rect.y - gy,
+    });
 
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    const paintColHeader = (c: number, useScroll: boolean) => {
-      const x =
-        ROW_HEADER_WIDTH +
-        colLeft(this.colOffsets, c) -
-        (useScroll ? scrollLeft : 0);
-      const width = sheet.getColWidth(c);
-      if (x + width < ROW_HEADER_WIDTH || x > w) return;
-      ctx.strokeStyle = "#d4d4d4";
-      ctx.beginPath();
-      ctx.moveTo(x + width - 0.5, 0);
-      ctx.lineTo(x + width - 0.5, COL_HEADER_HEIGHT);
-      ctx.stroke();
-      ctx.fillStyle = "#5a5a5a";
-      ctx.fillText(colToLetter(c), x + width / 2, COL_HEADER_HEIGHT / 2);
-    };
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(
-      ROW_HEADER_WIDTH + band.width,
-      0,
-      Math.max(0, w - ROW_HEADER_WIDTH - band.width),
-      COL_HEADER_HEIGHT,
-    );
-    ctx.clip();
-    for (let c = scrollStartCol; c <= endCol; c++) paintColHeader(c, true);
-    ctx.restore();
-
-    for (let c = 0; c < freeze.col; c++) paintColHeader(c, false);
-
-    ctx.fillStyle = "#f5f5f5";
-    ctx.fillRect(0, COL_HEADER_HEIGHT, ROW_HEADER_WIDTH, h);
-
-    const paintRowHeader = (r: number, useScroll: boolean) => {
-      if (sheet.hiddenRows.has(r)) return;
-      const y =
-        COL_HEADER_HEIGHT +
-        rowTop(this.rowOffsets, r) -
-        (useScroll ? scrollTop : 0);
-      const height = sheet.getRowHeight(r);
-      if (height <= 0) return;
-      if (y + height < COL_HEADER_HEIGHT || y > h) return;
-      ctx.strokeStyle = "#d4d4d4";
-      ctx.beginPath();
-      ctx.moveTo(0, y + height - 0.5);
-      ctx.lineTo(ROW_HEADER_WIDTH, y + height - 0.5);
-      ctx.stroke();
-      ctx.fillStyle = "#5a5a5a";
-      ctx.textAlign = "center";
-      ctx.fillText(String(r + 1), ROW_HEADER_WIDTH / 2, y + height / 2);
-    };
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(
-      0,
-      COL_HEADER_HEIGHT + band.height,
-      ROW_HEADER_WIDTH,
-      Math.max(0, h - COL_HEADER_HEIGHT - band.height),
-    );
-    ctx.clip();
-    for (let r = scrollStartRow; r <= endRow; r++) paintRowHeader(r, true);
-    ctx.restore();
-
-    for (let r = 0; r < freeze.row; r++) paintRowHeader(r, false);
-
-    // Row/col header selection highlight (selectTitlesShow)
-    const headerAgg = aggregateRowColHeaders(this.workbook.selection);
-    ctx.fillStyle = "rgba(76, 76, 76, 0.1)";
-    for (const [r0, r1] of headerAgg.rows) {
-      const y0 = COL_HEADER_HEIGHT + rowTop(this.rowOffsets, r0) - (r0 < freeze.row ? 0 : scrollTop);
-      const y1 =
-        COL_HEADER_HEIGHT +
-        (this.rowOffsets[r1] ?? 0) -
-        (r1 < freeze.row ? 0 : scrollTop);
-      if (y1 > COL_HEADER_HEIGHT && y0 < h) {
-        ctx.fillRect(0, Math.max(COL_HEADER_HEIGHT, y0), ROW_HEADER_WIDTH, y1 - Math.max(COL_HEADER_HEIGHT, y0));
-      }
+    let scrollStartCol: number;
+    let endCol: number;
+    let scrollStartRow: number;
+    let endRow: number;
+    if (freeze.row === 0 && freeze.col === 0) {
+      const range = visibleCellRange(
+        sheet,
+        viewport,
+        scrollLeft,
+        scrollTop,
+        this.rowOffsets,
+        this.colOffsets,
+      );
+      scrollStartCol = range.scrollStartCol;
+      endCol = range.endCol;
+      scrollStartRow = range.scrollStartRow;
+      endRow = range.endRow;
+    } else {
+      scrollStartCol = Math.max(
+        freeze.col,
+        searchOffset(this.colOffsets, scrollLeft + band.width),
+      );
+      endCol = Math.min(
+        sheet.colCount - 1,
+        searchOffset(this.colOffsets, scrollLeft + w) + 1,
+      );
+      scrollStartRow = Math.max(
+        freeze.row,
+        searchOffset(this.rowOffsets, scrollTop + band.height),
+      );
+      endRow = Math.min(
+        sheet.rowCount - 1,
+        searchOffset(this.rowOffsets, scrollTop + h) + 1,
+      );
     }
-    for (const [c0, c1] of headerAgg.cols) {
-      const x0 = ROW_HEADER_WIDTH + colLeft(this.colOffsets, c0) - (c0 < freeze.col ? 0 : scrollLeft);
-      const x1 =
-        ROW_HEADER_WIDTH +
-        (this.colOffsets[c1] ?? 0) -
-        (c1 < freeze.col ? 0 : scrollLeft);
-      if (x1 > ROW_HEADER_WIDTH && x0 < w) {
-        ctx.fillRect(Math.max(ROW_HEADER_WIDTH, x0), 0, x1 - Math.max(ROW_HEADER_WIDTH, x0), COL_HEADER_HEIGHT);
-      }
-    }
-
-    ctx.fillStyle = "#f0f0f0";
-    ctx.fillRect(0, 0, ROW_HEADER_WIDTH, COL_HEADER_HEIGHT);
 
     const paintCell = (r: number, c: number) => {
       if (sheet.hiddenRows.has(r)) return;
       if (sheet.isMergeCovered(r, c)) return;
-      const rect = getCellRect(
+      const gridRect = getCellRect(
         sheet,
         r,
         c,
@@ -247,7 +166,8 @@ export class CanvasRenderer {
         scrollLeft,
         scrollTop,
       );
-      const cell = sheet.getCell(rect.row, rect.col);
+      const rect = toSurface(gridRect);
+      const cell = sheet.getCell(gridRect.row, gridRect.col);
 
       if (cell?.bg) {
         ctx.fillStyle = cell.bg;
@@ -265,7 +185,6 @@ export class CanvasRenderer {
         const italic = cell?.it ? "italic " : "";
         ctx.font = `${italic}${bold}${fs}pt sans-serif`;
         ctx.fillStyle = cell?.fc ?? "#000000";
-        // Luckysheet checkstatusByCell defaults: ht 1 left, vt 0 middle
         const ht = cell?.ht ?? 1;
         const vt = cell?.vt ?? 0;
         let tx = rect.x + 3;
@@ -296,10 +215,10 @@ export class CanvasRenderer {
     ctx.save();
     ctx.beginPath();
     ctx.rect(
-      ROW_HEADER_WIDTH + band.width,
-      COL_HEADER_HEIGHT + band.height,
-      Math.max(0, w - ROW_HEADER_WIDTH - band.width),
-      Math.max(0, h - COL_HEADER_HEIGHT - band.height),
+      band.width,
+      band.height,
+      Math.max(0, w - band.width),
+      Math.max(0, h - band.height),
     );
     ctx.clip();
     for (let r = scrollStartRow; r <= endRow; r++) {
@@ -310,12 +229,7 @@ export class CanvasRenderer {
     if (freeze.row > 0) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(
-        ROW_HEADER_WIDTH,
-        COL_HEADER_HEIGHT,
-        w - ROW_HEADER_WIDTH,
-        band.height,
-      );
+      ctx.rect(0, 0, w, band.height);
       ctx.clip();
       for (let r = 0; r < freeze.row; r++) {
         for (let c = scrollStartCol; c <= endCol; c++) paintCell(r, c);
@@ -327,12 +241,7 @@ export class CanvasRenderer {
     if (freeze.col > 0) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(
-        ROW_HEADER_WIDTH,
-        COL_HEADER_HEIGHT + band.height,
-        band.width,
-        Math.max(0, h - COL_HEADER_HEIGHT - band.height),
-      );
+      ctx.rect(0, band.height, band.width, Math.max(0, h - band.height));
       ctx.clip();
       for (let r = scrollStartRow; r <= endRow; r++) {
         for (let c = 0; c < freeze.col; c++) paintCell(r, c);
@@ -342,7 +251,7 @@ export class CanvasRenderer {
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(ROW_HEADER_WIDTH, COL_HEADER_HEIGHT, w - ROW_HEADER_WIDTH, h - COL_HEADER_HEIGHT);
+    ctx.rect(0, 0, w, h);
     ctx.clip();
 
     const selections = this.workbook.selection;
@@ -353,23 +262,27 @@ export class CanvasRenderer {
       const r1 = Math.max(sel.row[0], sel.row[1]);
       const c0 = Math.min(sel.column[0], sel.column[1]);
       const c1 = Math.max(sel.column[0], sel.column[1]);
-      const topLeft = getCellRect(
-        sheet,
-        r0,
-        c0,
-        this.rowOffsets,
-        this.colOffsets,
-        scrollLeft,
-        scrollTop,
+      const topLeft = toSurface(
+        getCellRect(
+          sheet,
+          r0,
+          c0,
+          this.rowOffsets,
+          this.colOffsets,
+          scrollLeft,
+          scrollTop,
+        ),
       );
-      const bottomRight = getCellRect(
-        sheet,
-        r1,
-        c1,
-        this.rowOffsets,
-        this.colOffsets,
-        scrollLeft,
-        scrollTop,
+      const bottomRight = toSurface(
+        getCellRect(
+          sheet,
+          r1,
+          c1,
+          this.rowOffsets,
+          this.colOffsets,
+          scrollLeft,
+          scrollTop,
+        ),
       );
       const sx = topLeft.x;
       const sy = topLeft.y;
@@ -387,19 +300,20 @@ export class CanvasRenderer {
       ctx.lineWidth = 1;
 
       if (isActive) {
-        // Focus cell (merge-aware)
         const focus = getFocusCell(sel);
         const merge = sheet.getMergeAt(focus.row, focus.col);
         const fr = merge?.r ?? focus.row;
         const fc = merge?.c ?? focus.col;
-        const focusRect = getCellRect(
-          sheet,
-          fr,
-          fc,
-          this.rowOffsets,
-          this.colOffsets,
-          scrollLeft,
-          scrollTop,
+        const focusRect = toSurface(
+          getCellRect(
+            sheet,
+            fr,
+            fc,
+            this.rowOffsets,
+            this.colOffsets,
+            scrollLeft,
+            scrollTop,
+          ),
         );
         ctx.strokeStyle = "rgba(1, 136, 251, 0.45)";
         ctx.strokeRect(
@@ -420,30 +334,33 @@ export class CanvasRenderer {
       }
     }
 
-    // Copy / cut marching ants (selectionCopyShow)
     const copy = this.workbook.copyHighlight;
     if (copy) {
       const r0 = Math.min(copy.row[0], copy.row[1]);
       const r1 = Math.max(copy.row[0], copy.row[1]);
       const c0 = Math.min(copy.column[0], copy.column[1]);
       const c1 = Math.max(copy.column[0], copy.column[1]);
-      const topLeft = getCellRect(
-        sheet,
-        r0,
-        c0,
-        this.rowOffsets,
-        this.colOffsets,
-        scrollLeft,
-        scrollTop,
+      const topLeft = toSurface(
+        getCellRect(
+          sheet,
+          r0,
+          c0,
+          this.rowOffsets,
+          this.colOffsets,
+          scrollLeft,
+          scrollTop,
+        ),
       );
-      const bottomRight = getCellRect(
-        sheet,
-        r1,
-        c1,
-        this.rowOffsets,
-        this.colOffsets,
-        scrollLeft,
-        scrollTop,
+      const bottomRight = toSurface(
+        getCellRect(
+          sheet,
+          r1,
+          c1,
+          this.rowOffsets,
+          this.colOffsets,
+          scrollLeft,
+          scrollTop,
+        ),
       );
       const sx = topLeft.x;
       const sy = topLeft.y;
@@ -459,18 +376,18 @@ export class CanvasRenderer {
     }
 
     if (freeze.row > 0) {
-      const y = COL_HEADER_HEIGHT + band.height;
+      const y = band.height;
       ctx.strokeStyle = "#0188fb";
       ctx.beginPath();
-      ctx.moveTo(ROW_HEADER_WIDTH, y + 0.5);
+      ctx.moveTo(0, y + 0.5);
       ctx.lineTo(w, y + 0.5);
       ctx.stroke();
     }
     if (freeze.col > 0) {
-      const x = ROW_HEADER_WIDTH + band.width;
+      const x = band.width;
       ctx.strokeStyle = "#0188fb";
       ctx.beginPath();
-      ctx.moveTo(x + 0.5, COL_HEADER_HEIGHT);
+      ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, h);
       ctx.stroke();
     }
