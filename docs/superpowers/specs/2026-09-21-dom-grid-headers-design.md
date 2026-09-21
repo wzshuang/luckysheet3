@@ -1,7 +1,7 @@
 # 行列头 DOM 化
 
 - 日期：2026-09-21
-- 状态：已批准，待实现
+- 状态：已实现
 - 范围：将行头、列头、左上角从 Canvas 绘制改为 DOM；行为与现网一致（`freeze 0,0`）
 - 对照：Luckysheet 2.x 表头为 DOM + 分区事件（`#luckysheet-rows-h`、`#luckysheet-cols-h-c`、`#luckysheet-left-top`）；本轮不照搬其 CSS/DOM 结构
 

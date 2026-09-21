@@ -2,6 +2,8 @@
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import type { ChromeState } from "../composables/useChromeState";
 import type { SelectionRange, WorkbookEngine } from "@luckysheet3/core";
+import { COL_HEADER_HEIGHT, ROW_HEADER_WIDTH } from "@luckysheet3/core";
+import GridHeaders from "./GridHeaders.vue";
 
 const props = defineProps<{
   engine: WorkbookEngine;
@@ -10,20 +12,18 @@ const props = defineProps<{
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const wrapRef = ref<HTMLDivElement | null>(null);
+const cellSurfaceRef = ref<HTMLDivElement | null>(null);
 const pendingChar = ref<string | null>(null);
 
 let selecting = false;
 let filling = false;
 let fillFrom: SelectionRange | null = null;
-let resizing: { kind: "row" | "col"; index: number; start: number; size: number } | null =
-  null;
-let headerDrag: { kind: "row" | "col"; start: number } | null = null;
 let anchor = { row: 0, col: 0 };
 let mods = { shift: false, ctrl: false };
 let resizeObs: ResizeObserver | null = null;
 
 function measure() {
-  const el = wrapRef.value;
+  const el = cellSurfaceRef.value;
   if (!el || !canvasRef.value) return;
   const rect = el.getBoundingClientRect();
   props.engine.setViewport(Math.max(100, rect.width), Math.max(100, rect.height));
@@ -35,7 +35,7 @@ onMounted(() => {
     measure();
   }
   resizeObs = new ResizeObserver(() => measure());
-  if (wrapRef.value) resizeObs.observe(wrapRef.value);
+  if (cellSurfaceRef.value) resizeObs.observe(cellSurfaceRef.value);
   window.addEventListener("keydown", onKeyDown);
 });
 
@@ -54,39 +54,21 @@ watch(
   },
 );
 
-function localPos(e: PointerEvent) {
-  const el = wrapRef.value!;
+function gridPosFromSurface(e: PointerEvent) {
+  const el = cellSurfaceRef.value!;
   const rect = el.getBoundingClientRect();
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  return {
+    x: e.clientX - rect.left + ROW_HEADER_WIDTH,
+    y: e.clientY - rect.top + COL_HEADER_HEIGHT,
+  };
 }
 
 function onPointerDown(e: PointerEvent) {
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  const { x, y } = localPos(e);
+  const { x, y } = gridPosFromSurface(e);
   mods = { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
 
-  // While editing: commit draft and select the clicked cell (Lucky/Excel behavior)
   if (props.engine.editing) {
-    if (props.engine.hitCorner(x, y)) {
-      props.engine.commitEdit();
-      props.engine.selectAll();
-      wrapRef.value?.focus();
-      return;
-    }
-    const rowH = props.engine.hitRowHeader(x, y);
-    if (rowH != null) {
-      props.engine.commitEdit();
-      props.engine.selectRow(rowH);
-      wrapRef.value?.focus();
-      return;
-    }
-    const colH = props.engine.hitColHeader(x, y);
-    if (colH != null) {
-      props.engine.commitEdit();
-      props.engine.selectColumn(colH);
-      wrapRef.value?.focus();
-      return;
-    }
     const hit = props.engine.hitTest(x, y);
     if (hit) {
       props.engine.commitEditAndSelect(hit.row, hit.col);
@@ -94,50 +76,6 @@ function onPointerDown(e: PointerEvent) {
       anchor = hit;
       wrapRef.value?.focus();
     }
-    return;
-  }
-
-  // Top-left corner → select all cells
-  if (props.engine.hitCorner(x, y)) {
-    props.engine.selectAll();
-    wrapRef.value?.focus();
-    return;
-  }
-
-  const rowEdge = props.engine.hitRowResize(x, y);
-  if (rowEdge != null) {
-    resizing = {
-      kind: "row",
-      index: rowEdge,
-      start: y,
-      size: props.engine.workbook.getActiveSheet().getRowHeight(rowEdge),
-    };
-    return;
-  }
-  const colEdge = props.engine.hitColResize(x, y);
-  if (colEdge != null) {
-    resizing = {
-      kind: "col",
-      index: colEdge,
-      start: x,
-      size: props.engine.workbook.getActiveSheet().getColWidth(colEdge),
-    };
-    return;
-  }
-
-  const rowHeader = props.engine.hitRowHeader(x, y);
-  if (rowHeader != null) {
-    headerDrag = { kind: "row", start: rowHeader };
-    props.engine.selectRow(rowHeader, { shift: mods.shift });
-    wrapRef.value?.focus();
-    return;
-  }
-
-  const colHeader = props.engine.hitColHeader(x, y);
-  if (colHeader != null) {
-    headerDrag = { kind: "col", start: colHeader };
-    props.engine.selectColumn(colHeader, { shift: mods.shift });
-    wrapRef.value?.focus();
     return;
   }
 
@@ -167,37 +105,7 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
-  const { x, y } = localPos(e);
-  if (resizing) {
-    if (resizing.kind === "row") {
-      props.engine.execute({
-        type: "setRowHeight",
-        row: resizing.index,
-        height: Math.max(4, resizing.size + (y - resizing.start)),
-      });
-    } else {
-      props.engine.execute({
-        type: "setColWidth",
-        col: resizing.index,
-        width: Math.max(4, resizing.size + (x - resizing.start)),
-      });
-    }
-    return;
-  }
-  if (headerDrag) {
-    if (headerDrag.kind === "row") {
-      const row = props.engine.hitRowHeader(x, y);
-      if (row != null) {
-        props.engine.selectRow(headerDrag.start, { endRow: row });
-      }
-    } else {
-      const col = props.engine.hitColHeader(x, y);
-      if (col != null) {
-        props.engine.selectColumn(headerDrag.start, { endCol: col });
-      }
-    }
-    return;
-  }
+  const { x, y } = gridPosFromSurface(e);
   if (filling && fillFrom) {
     const hit = props.engine.hitTest(x, y);
     if (!hit) return;
@@ -217,7 +125,6 @@ function onPointerMove(e: PointerEvent) {
   if (!selecting) return;
   const hit = props.engine.hitTest(x, y);
   if (!hit) return;
-  // Drag expands from mousedown anchor (focus stays at anchor)
   const rest = props.engine.selection.slice(0, -1);
   props.engine.execute({
     type: "setSelection",
@@ -246,8 +153,6 @@ function onPointerUp() {
   selecting = false;
   filling = false;
   fillFrom = null;
-  resizing = null;
-  headerDrag = null;
   mods = { shift: false, ctrl: false };
 }
 
@@ -286,7 +191,6 @@ async function writeSystemClipboard(): Promise<void> {
 }
 
 async function pasteWithSystemClipboard(): Promise<void> {
-  // Prefer styled in-memory payload when we copied inside the app
   if (props.engine.workbook.clipboard) {
     props.engine.pasteAtSelection();
     return;
@@ -416,19 +320,28 @@ defineExpose({ pendingChar });
     class="ls3-grid"
     :class="{ 'ls3-grid--paint': props.chrome.paintFormatActive.value }"
     tabindex="0"
-    @pointerdown="onPointerDown"
-    @pointermove="onPointerMove"
-    @pointerup="onPointerUp"
-    @dblclick="onDblClick"
     @wheel="onWheel"
   >
-    <canvas ref="canvasRef" class="ls3-grid__canvas" />
-    <slot :pending-char="pendingChar" :clear-pending="() => (pendingChar = null)" />
+    <GridHeaders :engine="props.engine" :grid-root="wrapRef" />
+    <div ref="cellSurfaceRef" class="ls3-grid__surface">
+      <canvas
+        ref="canvasRef"
+        class="ls3-grid__canvas"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @dblclick="onDblClick"
+      />
+      <slot :pending-char="pendingChar" :clear-pending="() => (pendingChar = null)" />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .ls3-grid {
+  display: grid;
+  grid-template-columns: var(--ls3-row-header-width, 46px) 1fr;
+  grid-template-rows: var(--ls3-col-header-height, 20px) 1fr;
   position: relative;
   flex: 1;
   min-height: 0;
@@ -438,6 +351,12 @@ defineExpose({ pendingChar });
 }
 .ls3-grid--paint {
   cursor: cell;
+}
+.ls3-grid__surface {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .ls3-grid__canvas {
   display: block;
