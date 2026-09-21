@@ -7,12 +7,14 @@ import { RouterLink, RouterView } from "vue-router";
     <header class="app__header">
       <strong>Luckysheet3 MVP</strong>
       <nav>
-        <RouterLink to="/">Vue 组件</RouterLink>
+        <RouterLink to="/">原版对比</RouterLink>
         <RouterLink to="/compat">Compat API</RouterLink>
       </nav>
     </header>
     <main class="app__main">
-      <RouterView />
+      <div class="app__view">
+        <RouterView />
+      </div>
     </main>
   </div>
 </template>
@@ -51,7 +53,15 @@ body,
 .app__main {
   flex: 1;
   min-height: 0;
-  padding: 12px;
+  padding: 8px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.app__view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>
