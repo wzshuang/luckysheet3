@@ -85,3 +85,59 @@ describe("ToolbarButton.vue", () => {
     assert.doesNotMatch(sfc, /<slot/);
   });
 });
+
+const toolbarVuePath = path.join(root, "src/components/Toolbar.vue");
+
+describe("Toolbar.vue markup", () => {
+  it("uses Chinese titles, original glyphs, split/combo, no english labels", () => {
+    const sfc = fs.readFileSync(toolbarVuePath, "utf8");
+    assert.match(sfc, /import ToolbarButton from "\.\/ToolbarButton\.vue"/);
+    assert.match(sfc, /title="撤销"/);
+    assert.match(sfc, /title="查找替换"/);
+    assert.match(sfc, /icon="qianjin"/);
+    assert.match(sfc, /icon="geshishua"/);
+    assert.match(sfc, /ls3-toolbar__split/);
+    assert.match(sfc, /ls3-toolbar__combo--size/);
+    assert.match(sfc, /ls3-toolbar__combo--format/);
+    assert.match(sfc, /luckysheet-iconfont-wenbenyanse/);
+    assert.match(sfc, /luckysheet-iconfont-tianchong/);
+    assert.doesNotMatch(sfc, />Undo</);
+    assert.doesNotMatch(sfc, />Redo</);
+    assert.doesNotMatch(sfc, />Left</);
+    assert.doesNotMatch(sfc, />Clear Fmt</);
+    assert.doesNotMatch(sfc, /<style scoped>/);
+
+    const icons = [...sfc.matchAll(/icon="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(icons, [
+      "qianjin",
+      "houtui",
+      "geshishua",
+      "bianji2",
+      "caijian",
+      "bianji",
+      "qingchuyangshi",
+      "jiacu",
+      "wenbenqingxie1",
+      "quanjiabiankuang",
+      "sizhoujiabiankuang",
+      "wubiankuang",
+      "hebing",
+      "quxiaohebing",
+      "wenbenzuoduiqi",
+      "wenbenjuzhongduiqi",
+      "wenbenyouduiqi",
+      "dingbuduiqi",
+      "shuipingduiqi",
+      "dibuduiqi",
+      "hang",
+      "jian1",
+      "lie",
+      "yichu1",
+      "dongjie1",
+      "dongjie",
+      "dongjie1",
+      "qingchu",
+      "sousuo",
+    ]);
+  });
+});

@@ -8,6 +8,7 @@ import {
   type WorkbookEngine,
 } from "@luckysheet3/core";
 import FindReplaceDialog from "./FindReplaceDialog.vue";
+import ToolbarButton from "./ToolbarButton.vue";
 
 const props = defineProps<{
   engine: WorkbookEngine;
@@ -34,6 +35,10 @@ const isItalic = computed(() => {
 });
 
 const isPaintFormatActive = computed(() => props.chrome.paintFormatActive.value);
+
+const formatLabel = computed(
+  () => FORMAT_PRESETS.find((p) => p.id === formatId.value)?.label ?? "General",
+);
 
 function syncFromSelection() {
   const cell = props.engine.getActiveCellStyle();
@@ -169,142 +174,87 @@ function onPaintClick() {
 
 <template>
   <div class="ls3-toolbar">
-    <button type="button" :disabled="chrome.undoDepth.value <= 0" title="Undo" @click="engine.undo()">
-      Undo
-    </button>
-    <button type="button" :disabled="chrome.redoDepth.value <= 0" title="Redo" @click="engine.redo()">
-      Redo
-    </button>
-    <span class="ls3-toolbar__sep" />
-    <select class="ls3-toolbar__select" title="Font size" :value="fontSize" @change="onFontSize">
-      <option v-for="s in FONT_SIZES" :key="s" :value="s">{{ s }}</option>
-    </select>
-    <button
-      type="button"
-      title="Bold"
-      class="ls3-toolbar__toggle"
-      :class="{ 'is-on': isBold }"
-      @click="engine.toggleStyleOnSelection('bl')"
-    >
-      B
-    </button>
-    <button
-      type="button"
-      title="Italic"
-      class="ls3-toolbar__toggle"
-      :class="{ 'is-on': isItalic }"
-      @click="engine.toggleStyleOnSelection('it')"
-    >
-      I
-    </button>
-    <label class="ls3-toolbar__color" title="Font color">
-      A
-      <input type="color" :value="fontColor" @input="onFontColor" />
-    </label>
-    <label class="ls3-toolbar__color" title="Fill color">
-      Fill
-      <input type="color" :value="fillColor" @input="onFillColor" />
-    </label>
-    <span class="ls3-toolbar__sep" />
-    <button type="button" @click="engine.applyStyleToSelection({ ht: 1 })">Left</button>
-    <button type="button" @click="engine.applyStyleToSelection({ ht: 0 })">Center</button>
-    <button type="button" @click="engine.applyStyleToSelection({ ht: 2 })">Right</button>
-    <button type="button" @click="engine.applyStyleToSelection({ vt: 1 })">Top</button>
-    <button type="button" @click="engine.applyStyleToSelection({ vt: 0 })">Middle</button>
-    <button type="button" @click="engine.applyStyleToSelection({ vt: 2 })">Bottom</button>
-    <span class="ls3-toolbar__sep" />
-    <select class="ls3-toolbar__select" title="Number format" :value="formatId" @change="onFormat">
-      <option v-for="p in FORMAT_PRESETS" :key="p.id" :value="p.id">{{ p.label }}</option>
-    </select>
-    <button type="button" title="Clear formatting" @click="engine.clearFormatOnSelection()">
-      Clear Fmt
-    </button>
-    <span class="ls3-toolbar__sep" />
-    <button type="button" title="Merge" @click="engine.mergeSelection()">Merge</button>
-    <button type="button" title="Unmerge" @click="engine.unmergeSelection()">Unmerge</button>
-    <button type="button" title="Insert row" @click="engine.insertRowsAtSelection()">+Row</button>
-    <button type="button" title="Delete row" @click="engine.deleteRowsAtSelection()">-Row</button>
-    <button type="button" title="Insert col" @click="engine.insertColsAtSelection()">+Col</button>
-    <button type="button" title="Delete col" @click="engine.deleteColsAtSelection()">-Col</button>
-    <span class="ls3-toolbar__sep" />
-    <button type="button" @click="onCopy">Copy</button>
-    <button type="button" @click="onCut">Cut</button>
-    <button type="button" @click="onPaste">Paste</button>
-    <button
-      type="button"
-      title="Format painter (double-click for continuous)"
-      class="ls3-toolbar__toggle"
-      :class="{ 'is-on': isPaintFormatActive }"
+    <ToolbarButton icon="qianjin" title="撤销" :disabled="chrome.undoDepth.value <= 0" @click="engine.undo()" />
+    <ToolbarButton icon="houtui" title="重做" :disabled="chrome.redoDepth.value <= 0" @click="engine.redo()" />
+    <ToolbarButton
+      icon="geshishua"
+      title="格式刷（双击可连续）"
+      :active="isPaintFormatActive"
       @click="onPaintClick"
-    >
-      格式刷
-    </button>
+    />
     <span class="ls3-toolbar__sep" />
-    <button type="button" title="Border all" @click="engine.applyBordersToSelection('all')">Border</button>
-    <button type="button" title="Outer border" @click="engine.applyBordersToSelection('outside')">Outer</button>
-    <button type="button" title="No border" @click="engine.applyBordersToSelection('none')">No Border</button>
+    <ToolbarButton icon="bianji2" title="复制" @click="onCopy" />
+    <ToolbarButton icon="caijian" title="剪切" @click="onCut" />
+    <ToolbarButton icon="bianji" title="粘贴" @click="onPaste" />
     <span class="ls3-toolbar__sep" />
-    <button type="button" @click="freezeRow">Freeze Row</button>
-    <button type="button" @click="freezeCol">Freeze Col</button>
-    <button type="button" @click="engine.freezeSelection()">Freeze Here</button>
-    <button type="button" @click="clearFreeze">Unfreeze</button>
+    <div class="ls3-toolbar__combo ls3-toolbar__combo--format" title="数字格式">
+      <span class="ls3-toolbar__combo-value">{{ formatLabel }}</span>
+      <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
+      <select class="ls3-toolbar__combo-select" :value="formatId" @change="onFormat">
+        <option v-for="p in FORMAT_PRESETS" :key="p.id" :value="p.id">{{ p.label }}</option>
+      </select>
+    </div>
+    <ToolbarButton icon="qingchuyangshi" title="清除格式" @click="engine.clearFormatOnSelection()" />
     <span class="ls3-toolbar__sep" />
-    <button type="button" @click="showFind = true">Find</button>
+    <div class="ls3-toolbar__combo ls3-toolbar__combo--size" title="字号">
+      <span class="ls3-toolbar__combo-value">{{ fontSize }}</span>
+      <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
+      <select class="ls3-toolbar__combo-select" :value="fontSize" @change="onFontSize">
+        <option v-for="s in FONT_SIZES" :key="s" :value="s">{{ s }}</option>
+      </select>
+    </div>
+    <span class="ls3-toolbar__sep" />
+    <ToolbarButton icon="jiacu" title="粗体" :active="isBold" @click="engine.toggleStyleOnSelection('bl')" />
+    <ToolbarButton icon="wenbenqingxie1" title="斜体" :active="isItalic" @click="engine.toggleStyleOnSelection('it')" />
+    <div class="ls3-toolbar__split" title="文字颜色">
+      <span class="ls3-toolbar__split-left">
+        <span class="ls3-toolbar__swatch">
+          <i class="iconfont-luckysheet luckysheet-iconfont-wenbenyanse ls3-toolbar__icon" aria-hidden="true" />
+          <span class="ls3-toolbar__color-bar" :style="{ backgroundColor: fontColor }" />
+        </span>
+      </span>
+      <span class="ls3-toolbar__split-right">
+        <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
+      </span>
+      <input class="ls3-toolbar__color-input" type="color" :value="fontColor" @input="onFontColor" />
+    </div>
+    <span class="ls3-toolbar__sep" />
+    <div class="ls3-toolbar__split" title="填充颜色">
+      <span class="ls3-toolbar__split-left">
+        <span class="ls3-toolbar__swatch">
+          <i class="iconfont-luckysheet luckysheet-iconfont-tianchong ls3-toolbar__icon" aria-hidden="true" />
+          <span class="ls3-toolbar__color-bar" :style="{ backgroundColor: fillColor }" />
+        </span>
+      </span>
+      <span class="ls3-toolbar__split-right">
+        <i class="iconfont-luckysheet luckysheet-iconfont-xiayige" aria-hidden="true" />
+      </span>
+      <input class="ls3-toolbar__color-input" type="color" :value="fillColor" @input="onFillColor" />
+    </div>
+    <ToolbarButton icon="quanjiabiankuang" title="所有边框" @click="engine.applyBordersToSelection('all')" />
+    <ToolbarButton icon="sizhoujiabiankuang" title="外边框" @click="engine.applyBordersToSelection('outside')" />
+    <ToolbarButton icon="wubiankuang" title="无边框" @click="engine.applyBordersToSelection('none')" />
+    <ToolbarButton icon="hebing" title="合并单元格" @click="engine.mergeSelection()" />
+    <ToolbarButton icon="quxiaohebing" title="取消合并" @click="engine.unmergeSelection()" />
+    <span class="ls3-toolbar__sep" />
+    <ToolbarButton icon="wenbenzuoduiqi" title="左对齐" @click="engine.applyStyleToSelection({ ht: 1 })" />
+    <ToolbarButton icon="wenbenjuzhongduiqi" title="居中" @click="engine.applyStyleToSelection({ ht: 0 })" />
+    <ToolbarButton icon="wenbenyouduiqi" title="右对齐" @click="engine.applyStyleToSelection({ ht: 2 })" />
+    <ToolbarButton icon="dingbuduiqi" title="顶端对齐" @click="engine.applyStyleToSelection({ vt: 1 })" />
+    <ToolbarButton icon="shuipingduiqi" title="垂直居中" @click="engine.applyStyleToSelection({ vt: 0 })" />
+    <ToolbarButton icon="dibuduiqi" title="底端对齐" @click="engine.applyStyleToSelection({ vt: 2 })" />
+    <span class="ls3-toolbar__sep" />
+    <ToolbarButton icon="hang" title="插入行" @click="engine.insertRowsAtSelection()" />
+    <ToolbarButton icon="jian1" title="删除行" @click="engine.deleteRowsAtSelection()" />
+    <ToolbarButton icon="lie" title="插入列" @click="engine.insertColsAtSelection()" />
+    <ToolbarButton icon="yichu1" title="删除列" @click="engine.deleteColsAtSelection()" />
+    <span class="ls3-toolbar__sep" />
+    <ToolbarButton icon="dongjie1" title="冻结首行" @click="freezeRow" />
+    <ToolbarButton icon="dongjie" title="冻结首列" @click="freezeCol" />
+    <ToolbarButton icon="dongjie1" title="冻结至此" @click="engine.freezeSelection()" />
+    <ToolbarButton icon="qingchu" title="取消冻结" @click="clearFreeze" />
+    <span class="ls3-toolbar__sep" />
+    <ToolbarButton icon="sousuo" title="查找替换" @click="showFind = true" />
   </div>
   <FindReplaceDialog v-if="showFind" :engine="engine" @close="showFind = false" />
 </template>
-
-<style scoped>
-.ls3-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding: 6px 8px;
-  border-bottom: 1px solid #e5e5e5;
-  background: #fafafa;
-}
-.ls3-toolbar button,
-.ls3-toolbar__select {
-  border: 1px solid #d9d9d9;
-  background: #fff;
-  border-radius: 4px;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.ls3-toolbar button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.ls3-toolbar__toggle.is-on {
-  background: #e6f4ff;
-  border-color: #91caff;
-  font-weight: 700;
-}
-.ls3-toolbar__sep {
-  width: 1px;
-  height: 18px;
-  background: #ddd;
-  margin: 0 4px;
-}
-.ls3-toolbar__color {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 12px;
-  background: #fff;
-  cursor: pointer;
-}
-.ls3-toolbar__color input {
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-}
-</style>
