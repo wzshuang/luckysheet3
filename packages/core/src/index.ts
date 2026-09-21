@@ -70,3 +70,5 @@ export {
   activeCellFormatId,
 } from "./format/number-format.js";
 export type { FormatPresetId, FormatPreset } from "./format/number-format.js";
+export { visibleCellRange } from "./layout/visible-range.js";
+export type { VisibleRange } from "./layout/visible-range.js";
