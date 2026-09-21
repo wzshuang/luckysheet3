@@ -1,4 +1,4 @@
-import { Workbook, type LuckyOp, type SelectionRange, type WorkbookListener } from "./model/workbook.js";
+import { Workbook, type LuckyOp, type PaintMode, type SelectionRange, type WorkbookListener } from "./model/workbook.js";
 import type { SheetSnapshot } from "./model/sheet.js";
 import type { CellData } from "./model/cell.js";
 import { CommandBus } from "./command/bus.js";
@@ -19,15 +19,17 @@ import {
   type CellRect,
 } from "./hit/location.js";
 import { displayValue } from "./model/cell.js";
-import { extractRange, type ClipboardPayload } from "./clipboard/clipboard.js";
+import { extractRange, extractMerges, type ClipboardPayload } from "./clipboard/clipboard.js";
 import {
   cellsToHtml,
   cellsToTsv,
   parseClipboardPayload,
 } from "./clipboard/serialize.js";
+import { extractFormatMatrix } from "./clipboard/style.js";
 import { collectColumnValues, findNext } from "./find/find-replace.js";
 import {
   extendRange,
+  expandRangeForMerges,
   getFocusCell,
   normalizeRange,
   rangesOverlap,
@@ -610,25 +612,33 @@ export class WorkbookEngine {
   }
 
   copySelection(): void {
+    if (this.workbook.paintMode) this.cancelPaintFormat();
     const sel = this.getActiveRange();
     if (!sel) return;
+    const sheet = this.workbook.getActiveSheet();
+    const from = expandRangeForMerges(sel, sheet);
     this.workbook.clipboard = {
-      cells: extractRange(this.workbook.getActiveSheet(), sel),
-      from: sel,
+      cells: extractRange(sheet, from),
+      from,
       cut: false,
+      merges: extractMerges(sheet, from),
     };
-    this.setCopyHighlight(sel);
+    this.setCopyHighlight(from);
   }
 
   cutSelection(): void {
+    if (this.workbook.paintMode) this.cancelPaintFormat();
     const sel = this.getActiveRange();
     if (!sel) return;
+    const sheet = this.workbook.getActiveSheet();
+    const from = expandRangeForMerges(sel, sheet);
     this.workbook.clipboard = {
-      cells: extractRange(this.workbook.getActiveSheet(), sel),
-      from: sel,
+      cells: extractRange(sheet, from),
+      from,
       cut: true,
+      merges: extractMerges(sheet, from),
     };
-    this.setCopyHighlight(sel);
+    this.setCopyHighlight(from);
   }
 
   /** TSV for `navigator.clipboard.writeText` / text/plain ClipboardItem. */
@@ -642,7 +652,7 @@ export class WorkbookEngine {
   getClipboardHtml(): string | null {
     const clip = this.workbook.clipboard;
     if (!clip) return null;
-    return cellsToHtml(clip.cells);
+    return cellsToHtml(clip.cells, clip.merges);
   }
 
   setCopyHighlight(range: SelectionRange | null): void {
@@ -659,6 +669,60 @@ export class WorkbookEngine {
   clearCopyHighlight(): void {
     if (!this.workbook.copyHighlight) return;
     this.setCopyHighlight(null);
+  }
+
+  isPaintFormatActive(): boolean {
+    return this.workbook.paintMode != null;
+  }
+
+  startPaintFormat(single: boolean): boolean {
+    if (this.workbook.selection.length !== 1) return false;
+    const sel = this.getActiveRange();
+    if (!sel) return false;
+    const sheet = this.workbook.getActiveSheet();
+    const source = extractFormatMatrix(extractRange(sheet, sel));
+    this.workbook.paintMode = { single, source, from: sel };
+    this.setCopyHighlight(sel);
+    this.workbook.emit({ type: "paintFormat", active: true });
+    return true;
+  }
+
+  cancelPaintFormat(): void {
+    const hadPaint = this.workbook.paintMode != null;
+    if (!hadPaint && !this.workbook.copyHighlight) return;
+    this.workbook.paintMode = null;
+    this.setCopyHighlight(null);
+    if (hadPaint) {
+      this.workbook.emit({ type: "paintFormat", active: false });
+    }
+  }
+
+  applyPaintFormatToSelection(): boolean {
+    const mode = this.workbook.paintMode;
+    const sel = this.getActiveRange();
+    if (!mode || !sel) return false;
+    const r0 = Math.min(sel.row[0], sel.row[1]);
+    const r1 = Math.max(sel.row[0], sel.row[1]);
+    const c0 = Math.min(sel.column[0], sel.column[1]);
+    const c1 = Math.max(sel.column[0], sel.column[1]);
+    let rowCount = r1 - r0 + 1;
+    let colCount = c1 - c0 + 1;
+    const srcH = mode.source.length;
+    const srcW = mode.source[0]?.length ?? 0;
+    if (rowCount === 1 && colCount === 1 && srcH > 0 && srcW > 0) {
+      rowCount = srcH;
+      colCount = srcW;
+    }
+    this.execute({
+      type: "paintFormat",
+      anchorRow: r0,
+      anchorCol: c0,
+      rowCount,
+      colCount,
+      source: mode.source,
+    });
+    if (mode.single) this.cancelPaintFormat();
+    return true;
   }
 
   pasteAtSelection(): void {
@@ -678,6 +742,7 @@ export class WorkbookEngine {
       anchorRow: Math.min(sel.row[0], sel.row[1]),
       anchorCol: Math.min(sel.column[0], sel.column[1]),
       cells: clip.cells,
+      merges: clip.merges,
       clearSource,
     });
     if (clip.cut) {
@@ -691,14 +756,15 @@ export class WorkbookEngine {
    * in-memory payload, or when the caller explicitly wants external data.
    */
   pasteFromExternal(input: { html?: string; text?: string }): boolean {
-    const cells = parseClipboardPayload(input);
+    const parsed = parseClipboardPayload(input);
     const sel = this.getActiveRange();
-    if (!cells || !sel) return false;
+    if (!parsed || !sel) return false;
     this.execute({
       type: "pasteCells",
       anchorRow: Math.min(sel.row[0], sel.row[1]),
       anchorCol: Math.min(sel.column[0], sel.column[1]),
-      cells,
+      cells: parsed.cells,
+      merges: parsed.merges,
     });
     return true;
   }
@@ -789,5 +855,5 @@ function isSheetSnapshots(
   return Array.isArray(first.celldata) && !("data" in first && first.data && !first.celldata);
 }
 
-export type { LuckyOp, SelectionRange, Command, CellData, SheetSnapshot, LuckySheetRaw };
+export type { LuckyOp, SelectionRange, PaintMode, Command, CellData, SheetSnapshot, LuckySheetRaw };
 export type { ClipboardPayload };

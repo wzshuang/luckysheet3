@@ -88,7 +88,17 @@ export type Command =
       anchorRow: number;
       anchorCol: number;
       cells: Array<Array<CellData | null>>;
+      merges?: import("../clipboard/clipboard.js").RelativeMerge[];
       clearSource?: { row: number; col: number; rowCount: number; colCount: number };
+      sheetIndex?: string | number;
+    }
+  | {
+      type: "paintFormat";
+      anchorRow: number;
+      anchorCol: number;
+      rowCount: number;
+      colCount: number;
+      source: Array<Array<CellData | null>>;
       sheetIndex?: string | number;
     }
   | {

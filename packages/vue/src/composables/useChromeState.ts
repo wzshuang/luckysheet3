@@ -12,6 +12,7 @@ export type ChromeState = {
   redoDepth: ShallowRef<number>;
   editing: ShallowRef<boolean>;
   formulaText: ShallowRef<string>;
+  paintFormatActive: ShallowRef<boolean>;
 };
 
 /** Subscribe engine events into shallowRefs for chrome only — never reactive cells. */
@@ -23,6 +24,7 @@ export function useChromeState(engine: WorkbookEngine): ChromeState {
   const redoDepth = shallowRef(engine.redoDepth);
   const editing = shallowRef(engine.editing);
   const formulaText = shallowRef("");
+  const paintFormatActive = shallowRef(engine.isPaintFormatActive());
 
   const syncFormula = () => {
     const sel = engine.selection[0];
@@ -51,6 +53,7 @@ export function useChromeState(engine: WorkbookEngine): ChromeState {
         redoDepth.value = e.redoDepth;
       }
       if (e.type === "edit") editing.value = e.editing;
+      if (e.type === "paintFormat") paintFormatActive.value = e.active;
       if (e.type === "change" || e.type === "selection") syncFormula();
     });
   });
@@ -65,5 +68,6 @@ export function useChromeState(engine: WorkbookEngine): ChromeState {
     redoDepth,
     editing,
     formulaText,
+    paintFormatActive,
   };
 }

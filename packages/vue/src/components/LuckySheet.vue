@@ -82,7 +82,7 @@ defineExpose({
       <FormulaBar :engine="engineRef!" :chrome="chrome" />
     </slot>
     <div class="ls3-root__body">
-      <GridCanvas :engine="engineRef!" v-slot="{ pendingChar: pc, clearPending }">
+      <GridCanvas :engine="engineRef!" :chrome="chrome" v-slot="{ pendingChar: pc, clearPending }">
         <CellEditor
           :engine="engineRef!"
           :pending-char="pc"

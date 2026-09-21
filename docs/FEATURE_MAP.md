@@ -53,7 +53,7 @@
 | ------------------------------------- | --------------------- | -------------------------------------------------------------- | -------- | ---------------------------------------- |
 | `handler.js`                          | 网格指针/滚轮/双击编辑/选区拖拽等总入口 | `vue/components/GridCanvas.vue` + `core/engine.ts`             | usable   | 右键前逻辑；细节持续对拍；公式编辑中选区引用未做 |
 | `keyboard.js`                         | 全套快捷键                 | `GridCanvas.vue` `onKeyDown`                                   | usable   | Ctrl+A/Shift 方向键已绑；仍缺大量格式快捷键 |
-| `select.js` / `selection.js`          | 选区高亮、名称框、多选           | `selection/range.ts` + engine select* + canvas-renderer + selectionToLabel | usable   | **A 档已做** focus/Shift/Ctrl/行列表头/多选绘制；**B 档已做** 复制虚线 + TSV/HTML 粘贴；仍缺格式刷、协同框 |
+| `select.js` / `selection.js`          | 选区高亮、名称框、多选           | `selection/range.ts` + engine select* + canvas-renderer + selectionToLabel | usable   | **A/B 已做** 选区/复制虚线/TSV·HTML 粘贴/格式刷/合并粘贴；仍缺保护、粘贴选项、协同框 |
 | `formulaBar.js`                       | 公式栏                   | `vue/components/FormulaBar.vue`                                | usable   | 公式编辑时选区引用插入、名称框跳转                        |
 | `toolbar.js`                          | 工具栏按钮编排               | `vue/components/Toolbar.vue`                                   | usable   | 见 §5 工具栏细项                               |
 | `menuButton.js`                       | 工具栏下拉 + 右键菜单          | —                                                              | none     | 右键菜单整体缺失                                 |
@@ -180,7 +180,7 @@
 | 原版能力          | 状态       | 备注                                   |
 | ------------- | -------- | ------------------------------------ |
 | 撤销/重做         | usable   |                                      |
-| 格式刷           | none     |                                      |
+| 格式刷           | usable   | Toolbar 单击/双击连续 + paintFormat |
 | 货币/百分比/数字增减小数 | skeleton | 有 Currency/Percent/Number 预设，无增减小数按钮 |
 | 更多格式          | skeleton |                                      |
 | 字体            | none     |                                      |

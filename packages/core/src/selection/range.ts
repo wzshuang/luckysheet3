@@ -122,3 +122,53 @@ export function getFocusCell(range: SelectionRange): { row: number; col: number 
     col: n.column_focus ?? n.column[0],
   };
 }
+
+/**
+ * Expand range to include full merge blocks that intersect it (for copy/paste).
+ */
+export function expandRangeForMerges(
+  range: SelectionRange,
+  sheet: Sheet,
+): SelectionRange {
+  let r0 = Math.min(range.row[0], range.row[1]);
+  let r1 = Math.max(range.row[0], range.row[1]);
+  let c0 = Math.min(range.column[0], range.column[1]);
+  let c1 = Math.max(range.column[0], range.column[1]);
+  const merge = sheet.config.merge;
+  if (!merge) return normalizeRange(range, sheet);
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const m of Object.values(merge)) {
+      const mr1 = m.r + m.rs - 1;
+      const mc1 = m.c + m.cs - 1;
+      const overlaps =
+        m.r <= r1 && mr1 >= r0 && m.c <= c1 && mc1 >= c0;
+      if (!overlaps) continue;
+      const nr0 = Math.min(r0, m.r);
+      const nr1 = Math.max(r1, mr1);
+      const nc0 = Math.min(c0, m.c);
+      const nc1 = Math.max(c1, mc1);
+      if (nr0 !== r0 || nr1 !== r1 || nc0 !== c0 || nc1 !== c1) {
+        r0 = nr0;
+        r1 = nr1;
+        c0 = nc0;
+        c1 = nc1;
+        changed = true;
+      }
+    }
+  }
+
+  return normalizeRange(
+    {
+      row: [r0, r1],
+      column: [c0, c1],
+      row_focus: range.row_focus ?? r0,
+      column_focus: range.column_focus ?? c0,
+      row_select: range.row_select,
+      column_select: range.column_select,
+    },
+    sheet,
+  );
+}

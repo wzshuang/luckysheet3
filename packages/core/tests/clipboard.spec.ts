@@ -7,6 +7,7 @@ import {
   parseHtmlTable,
   parseTsv,
 } from "../src/clipboard/serialize.js";
+import { extractMerges } from "../src/clipboard/clipboard.js";
 
 describe("clipboard fill series", () => {
   it("fill numeric series downward", () => {
@@ -135,12 +136,41 @@ describe("TSV / HTML clipboard", () => {
   it("parses Excel-like HTML table", () => {
     const html =
       "<html><body><table><tr><td>1</td><td>hello</td></tr><tr><td></td><td>2</td></tr></table></body></html>";
-    const parsed = parseHtmlTable(html);
-    expect(parsed).toHaveLength(2);
-    expect(parsed[0][0]?.v).toBe(1);
-    expect(parsed[0][1]?.v).toBe("hello");
-    expect(parsed[1][0]).toBeNull();
-    expect(parsed[1][1]?.v).toBe(2);
+    const { cells } = parseHtmlTable(html);
+    expect(cells).toHaveLength(2);
+    expect(cells[0][0]?.v).toBe(1);
+    expect(cells[0][1]?.v).toBe("hello");
+    expect(cells[1][0]).toBeNull();
+    expect(cells[1][1]?.v).toBe(2);
+  });
+
+  it("parseHtmlTable reads styles and rowspan", () => {
+    const html = `<table><tr>
+    <td rowspan="2" style="background-color:#ff0000;font-weight:bold;color:#00ff00">A</td>
+    <td style="text-align:center">B</td>
+  </tr><tr><td>C</td></tr></table>`;
+    const { cells, merges } = parseHtmlTable(html);
+    expect(cells[0][0]?.v).toBe("A");
+    expect(cells[0][0]?.bg).toBe("#ff0000");
+    expect(cells[0][0]?.bl).toBe(1);
+    expect(cells[0][0]?.fc).toBe("#00ff00");
+    expect(cells[0][1]?.ht).toBe(0);
+    expect(cells[1][0]).toBeNull();
+    expect(cells[1][1]?.v).toBe("C");
+    expect(merges).toEqual([{ r: 0, c: 0, rs: 2, cs: 1 }]);
+  });
+
+  it("cellsToHtml writes rowspan and basic style", () => {
+    const html = cellsToHtml(
+      [
+        [{ v: "A", m: "A", bg: "#ff0", bl: 1 }, { v: "B", m: "B" }],
+        [null, { v: "C", m: "C" }],
+      ],
+      [{ r: 0, c: 0, rs: 2, cs: 1 }],
+    );
+    expect(html).toContain('rowspan="2"');
+    expect(html).toContain("background-color:#ff0");
+    expect(html).not.toMatch(/<tr><td><\/td><td>C/);
   });
 
   it("cellsToHtml wraps table", () => {
@@ -191,5 +221,63 @@ describe("TSV / HTML clipboard", () => {
     eng.copySelection();
     expect(eng.getClipboardTsv()).toBe("hi");
     expect(eng.getClipboardHtml()).toContain("<td>hi</td>");
+  });
+
+  it("extractMerges only fully-contained merges as relative", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({ type: "mergeCells", row: 1, col: 1, rowCount: 2, colCount: 2 });
+    const merges = extractMerges(eng.workbook.getActiveSheet(), {
+      row: [1, 2],
+      column: [1, 2],
+    });
+    expect(merges).toEqual([{ r: 0, c: 0, rs: 2, cs: 2 }]);
+  });
+
+  it("paste restores merges at anchor", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({ type: "setCellValue", row: 0, col: 0, value: "a" });
+    eng.execute({ type: "mergeCells", row: 0, col: 0, rowCount: 2, colCount: 1 });
+    eng.execute({ type: "setSelection", selection: [{ row: [0, 1], column: [0, 0] }] });
+    eng.copySelection();
+    eng.execute({ type: "setSelection", selection: [{ row: [0, 0], column: [2, 2] }] });
+    eng.pasteAtSelection();
+    const m = eng.workbook.getActiveSheet().getMergeAt(0, 2);
+    expect(m).toEqual(expect.objectContaining({ r: 0, c: 2, rs: 2, cs: 1 }));
+  });
+
+  it("copy merge when selection is a single cell inside merge", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({ type: "setCellValue", row: 0, col: 0, value: "merged" });
+    eng.execute({ type: "mergeCells", row: 0, col: 0, rowCount: 2, colCount: 2 });
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [1, 1], column: [1, 1], row_focus: 1, column_focus: 1 }],
+    });
+    eng.copySelection();
+    expect(eng.workbook.clipboard?.cells).toHaveLength(2);
+    expect(eng.workbook.clipboard?.cells[0][0]?.v).toBe("merged");
+    expect(eng.workbook.clipboard?.merges).toEqual([
+      { r: 0, c: 0, rs: 2, cs: 2 },
+    ]);
+    eng.execute({
+      type: "setSelection",
+      selection: [{ row: [5, 5], column: [5, 5] }],
+    });
+    eng.pasteAtSelection();
+    expect(eng.getCellValue(5, 5)).toBe("merged");
+    expect(eng.workbook.getActiveSheet().getMergeAt(5, 5)).toMatchObject({
+      rs: 2,
+      cs: 2,
+    });
+  });
+
+  it("pasteFromExternal applies merges from HTML", () => {
+    const eng = new WorkbookEngine();
+    eng.execute({ type: "setSelection", selection: [{ row: [0, 0], column: [0, 0] }] });
+    eng.pasteFromExternal({
+      html: `<table><tr><td rowspan="2">X</td><td>Y</td></tr><tr><td>Z</td></tr></table>`,
+    });
+    expect(eng.getCellValue(0, 0)).toBe("X");
+    expect(eng.workbook.getActiveSheet().getMergeAt(0, 0)?.rs).toBe(2);
   });
 });

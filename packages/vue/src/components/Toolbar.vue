@@ -33,6 +33,8 @@ const isItalic = computed(() => {
   return !!props.engine.getActiveCellStyle()?.it;
 });
 
+const isPaintFormatActive = computed(() => props.chrome.paintFormatActive.value);
+
 function syncFromSelection() {
   const cell = props.engine.getActiveCellStyle();
   fontSize.value = cell?.fs ?? 10;
@@ -140,6 +142,29 @@ async function onPaste() {
   }
   props.engine.pasteAtSelection();
 }
+
+let paintClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onPaintClick() {
+  if (props.engine.isPaintFormatActive()) {
+    if (paintClickTimer) {
+      clearTimeout(paintClickTimer);
+      paintClickTimer = null;
+    }
+    props.engine.cancelPaintFormat();
+    return;
+  }
+  if (paintClickTimer) {
+    clearTimeout(paintClickTimer);
+    paintClickTimer = null;
+    props.engine.startPaintFormat(false);
+    return;
+  }
+  paintClickTimer = setTimeout(() => {
+    paintClickTimer = null;
+    props.engine.startPaintFormat(true);
+  }, 250);
+}
 </script>
 
 <template>
@@ -205,6 +230,15 @@ async function onPaste() {
     <button type="button" @click="onCopy">Copy</button>
     <button type="button" @click="onCut">Cut</button>
     <button type="button" @click="onPaste">Paste</button>
+    <button
+      type="button"
+      title="Format painter (double-click for continuous)"
+      class="ls3-toolbar__toggle"
+      :class="{ 'is-on': isPaintFormatActive }"
+      @click="onPaintClick"
+    >
+      格式刷
+    </button>
     <span class="ls3-toolbar__sep" />
     <button type="button" title="Border all" @click="engine.applyBordersToSelection('all')">Border</button>
     <button type="button" title="Outer border" @click="engine.applyBordersToSelection('outside')">Outer</button>

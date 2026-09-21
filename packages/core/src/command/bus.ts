@@ -5,6 +5,7 @@ import type { Command, ExecuteResult, InverseEntry } from "./types.js";
 import { FormulaEngine } from "../formula/evaluator.js";
 import { displayValue } from "../model/cell.js";
 import { fillRange } from "../clipboard/clipboard.js";
+import { applyFormat } from "../clipboard/style.js";
 import { applyBorders } from "../border/borders.js";
 import {
   applyFormatToCell,
@@ -22,6 +23,7 @@ const STRUCTURAL = new Set([
   "insertCols",
   "deleteCols",
   "pasteCells",
+  "paintFormat",
   "fillCells",
   "replaceAll",
   "setFilter",
@@ -263,7 +265,7 @@ export class CommandBus {
       }
       case "pasteCells":
         return this.applyStructural(command, (sheet) => {
-          const { cells, anchorRow, anchorCol, clearSource } = command;
+          const { cells, anchorRow, anchorCol, clearSource, merges } = command;
           if (clearSource) {
             for (let r = 0; r < clearSource.rowCount; r++) {
               for (let c = 0; c < clearSource.colCount; c++) {
@@ -274,6 +276,32 @@ export class CommandBus {
           for (let r = 0; r < cells.length; r++) {
             for (let c = 0; c < (cells[r]?.length ?? 0); c++) {
               sheet.setCell(anchorRow + r, anchorCol + c, cells[r][c]);
+            }
+          }
+          for (const m of merges ?? []) {
+            sheet.setMerge({
+              r: anchorRow + m.r,
+              c: anchorCol + m.c,
+              rs: m.rs,
+              cs: m.cs,
+            });
+          }
+        }, true);
+      case "paintFormat":
+        return this.applyStructural(command, (sheet) => {
+          const { anchorRow, anchorCol, rowCount, colCount, source } = command;
+          const srcH = source.length;
+          const srcW = source[0]?.length ?? 0;
+          if (srcH === 0 || srcW === 0) return;
+          for (let r = 0; r < rowCount; r++) {
+            for (let c = 0; c < colCount; c++) {
+              const fmt = source[r % srcH]?.[c % srcW] ?? null;
+              const prev = sheet.getCell(anchorRow + r, anchorCol + c);
+              sheet.setCell(
+                anchorRow + r,
+                anchorCol + c,
+                applyFormat(prev, fmt),
+              );
             }
           }
         }, true);

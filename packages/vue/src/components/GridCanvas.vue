@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from "vue";
+import type { ChromeState } from "../composables/useChromeState";
 import type { SelectionRange, WorkbookEngine } from "@luckysheet3/core";
 
 const props = defineProps<{
   engine: WorkbookEngine;
+  chrome: ChromeState;
 }>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -238,6 +240,9 @@ function onPointerUp() {
       props.engine.execute({ type: "fillCells", from: fillFrom, to: sel });
     }
   }
+  if (props.engine.isPaintFormatActive()) {
+    props.engine.applyPaintFormatToSelection();
+  }
   selecting = false;
   filling = false;
   fillFrom = null;
@@ -340,6 +345,11 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   }
   if (e.key === "Escape") {
+    if (props.engine.isPaintFormatActive()) {
+      e.preventDefault();
+      props.engine.cancelPaintFormat();
+      return;
+    }
     if (props.engine.workbook.copyHighlight) {
       e.preventDefault();
       props.engine.clearCopyHighlight();
@@ -404,6 +414,7 @@ defineExpose({ pendingChar });
   <div
     ref="wrapRef"
     class="ls3-grid"
+    :class="{ 'ls3-grid--paint': props.chrome.paintFormatActive.value }"
     tabindex="0"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
@@ -424,6 +435,9 @@ defineExpose({ pendingChar });
   outline: none;
   overflow: hidden;
   background: #fff;
+}
+.ls3-grid--paint {
+  cursor: cell;
 }
 .ls3-grid__canvas {
   display: block;

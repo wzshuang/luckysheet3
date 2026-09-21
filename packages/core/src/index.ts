@@ -38,6 +38,7 @@ export {
   aggregateRowColHeaders,
   getFocusCell,
   selectTitlesRange,
+  expandRangeForMerges,
 } from "./selection/range.js";
 export { displayValue, cloneCell } from "./model/cell.js";
 export type { CellBorder, BorderSide } from "./model/cell.js";
@@ -52,6 +53,14 @@ export {
   parseHtmlTable,
   parseClipboardPayload,
 } from "./clipboard/serialize.js";
+export type { ClipboardParseResult } from "./clipboard/serialize.js";
+export type { RelativeMerge } from "./clipboard/clipboard.js";
+export {
+  stripValue,
+  applyFormat,
+  extractFormatMatrix,
+} from "./clipboard/style.js";
+export type { CellFormat } from "./clipboard/style.js";
 export {
   FORMAT_PRESETS,
   formatDisplay,

@@ -3,11 +3,44 @@ import { cloneCell, displayValue } from "../model/cell.js";
 import type { Sheet } from "../model/sheet.js";
 import type { SelectionRange } from "../model/workbook.js";
 
+export type RelativeMerge = {
+  r: number;
+  c: number;
+  rs: number;
+  cs: number;
+};
+
 export type ClipboardPayload = {
   cells: Array<Array<CellData | null>>;
   cut?: boolean;
   from: SelectionRange;
+  merges?: RelativeMerge[];
 };
+
+/** Merges fully contained in range, relative to range top-left. */
+export function extractMerges(
+  sheet: Sheet,
+  range: SelectionRange,
+): RelativeMerge[] {
+  const r0 = Math.min(range.row[0], range.row[1]);
+  const r1 = Math.max(range.row[0], range.row[1]);
+  const c0 = Math.min(range.column[0], range.column[1]);
+  const c1 = Math.max(range.column[0], range.column[1]);
+  const merge = sheet.config.merge;
+  if (!merge) return [];
+  const out: RelativeMerge[] = [];
+  for (const m of Object.values(merge)) {
+    if (
+      m.r >= r0 &&
+      m.r + m.rs - 1 <= r1 &&
+      m.c >= c0 &&
+      m.c + m.cs - 1 <= c1
+    ) {
+      out.push({ r: m.r - r0, c: m.c - c0, rs: m.rs, cs: m.cs });
+    }
+  }
+  return out;
+}
 
 export function extractRange(
   sheet: Sheet,
@@ -21,7 +54,12 @@ export function extractRange(
   for (let r = r0; r <= r1; r++) {
     const row: Array<CellData | null> = [];
     for (let c = c0; c <= c1; c++) {
-      row.push(cloneCell(sheet.getCell(r, c)));
+      const m = sheet.getMergeAt(r, c);
+      if (m && (r !== m.r || c !== m.c)) {
+        row.push(null);
+      } else {
+        row.push(cloneCell(sheet.getCell(r, c)));
+      }
     }
     out.push(row);
   }

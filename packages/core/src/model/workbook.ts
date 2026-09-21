@@ -3,6 +3,12 @@ import { type Cell, type CellData, cloneCell } from "./cell.js";
 import type { ClipboardPayload } from "../clipboard/clipboard.js";
 import { normalizeRange } from "../selection/range.js";
 
+export type PaintMode = {
+  single: boolean;
+  source: Array<Array<import("./cell.js").CellData | null>>;
+  from: SelectionRange;
+};
+
 export type SelectionRange = {
   row: [number, number];
   column: [number, number];
@@ -23,7 +29,8 @@ export type WorkbookEvent =
   | { type: "sheet"; activeIndex: string | number }
   | { type: "history"; undoDepth: number; redoDepth: number }
   | { type: "op"; op: LuckyOp }
-  | { type: "edit"; editing: boolean; row?: number; col?: number };
+  | { type: "edit"; editing: boolean; row?: number; col?: number }
+  | { type: "paintFormat"; active: boolean };
 
 /** Luckysheet collaborative opcode (MVP: v | rv only) */
 export type LuckyOp = {
@@ -51,6 +58,8 @@ export class Workbook {
   clipboard: ClipboardPayload | null = null;
   /** Marching-ants range after copy/cut; cleared on Esc / cut-paste / new copy. */
   copyHighlight: SelectionRange | null = null;
+  /** Format brush source snapshot */
+  paintMode: PaintMode | null = null;
   private listeners = new Set<WorkbookListener>();
 
   constructor(sheets?: SheetSnapshot[]) {
