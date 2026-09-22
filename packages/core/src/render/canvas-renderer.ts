@@ -12,8 +12,8 @@ import {
   searchOffset,
   type CellRect,
 } from "../hit/location.js";
-import { getFocusCell } from "../selection/range.js";
 import { visibleCellRange } from "../layout/visible-range.js";
+import { GRID_THEME } from "./grid-theme.js";
 
 function textDecorationLineYs(
   ty: number,
@@ -101,7 +101,7 @@ export class CanvasRenderer {
     const h = viewport.height;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = GRID_THEME.canvasBackground;
     ctx.fillRect(0, 0, w, h);
 
     const scrollLeft = this.workbook.scrollLeft;
@@ -174,8 +174,7 @@ export class CanvasRenderer {
         ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
       }
 
-      ctx.strokeStyle = "#e0e0e0";
-      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
+      paintDefaultCellGridLines(ctx, rect);
       paintCellBorders(ctx, rect, cell?.bd ?? null);
 
       const text = displayValue(cell);
@@ -291,46 +290,27 @@ export class CanvasRenderer {
       const isActive = i === lastIdx;
 
       ctx.fillStyle = isActive
-        ? "rgba(1, 136, 251, 0.08)"
-        : "rgba(1, 136, 251, 0.05)";
+        ? GRID_THEME.selectionFillActive
+        : GRID_THEME.selectionFillInactive;
       ctx.fillRect(sx, sy, sw, sh);
-      ctx.strokeStyle = isActive ? "#0188fb" : "rgba(1, 136, 251, 0.35)";
-      ctx.lineWidth = isActive ? 2 : 1;
-      ctx.strokeRect(sx + 1, sy + 1, sw - 2, sh - 2);
+      ctx.strokeStyle = isActive
+        ? GRID_THEME.selectionBorder
+        : GRID_THEME.selectionBorderInactive;
       ctx.lineWidth = 1;
+      ctx.strokeRect(sx + 0.5, sy + 0.5, sw - 1, sh - 1);
 
       if (isActive) {
-        const focus = getFocusCell(sel);
-        const merge = sheet.getMergeAt(focus.row, focus.col);
-        const fr = merge?.r ?? focus.row;
-        const fc = merge?.c ?? focus.col;
-        const focusRect = toSurface(
-          getCellRect(
-            sheet,
-            fr,
-            fc,
-            this.rowOffsets,
-            this.colOffsets,
-            scrollLeft,
-            scrollTop,
-          ),
-        );
-        ctx.strokeStyle = "rgba(1, 136, 251, 0.45)";
-        ctx.strokeRect(
-          focusRect.x + 2,
-          focusRect.y + 2,
-          focusRect.width - 4,
-          focusRect.height - 4,
-        );
+        ctx.strokeStyle = GRID_THEME.fillHandleBorder;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx + 1.5, sy + 1.5, sw - 3, sh - 3);
 
         const handleSize = 6;
-        ctx.fillStyle = "#0188fb";
-        ctx.fillRect(
-          sx + sw - handleSize / 2,
-          sy + sh - handleSize / 2,
-          handleSize,
-          handleSize,
-        );
+        const hx = sx + sw - handleSize + 2;
+        const hy = sy + sh - handleSize + 2;
+        ctx.fillStyle = GRID_THEME.fillHandleFill;
+        ctx.fillRect(hx, hy, handleSize, handleSize);
+        ctx.strokeStyle = GRID_THEME.fillHandleBorder;
+        ctx.strokeRect(hx + 0.5, hy + 0.5, handleSize - 1, handleSize - 1);
       }
     }
 
@@ -367,7 +347,7 @@ export class CanvasRenderer {
       const sw = bottomRight.x + bottomRight.width - sx;
       const sh = bottomRight.y + bottomRight.height - sy;
       ctx.save();
-      ctx.strokeStyle = "#0188fb";
+      ctx.strokeStyle = GRID_THEME.selectionBorder;
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 3]);
       ctx.lineDashOffset = -((Date.now() / 40) % 7);
@@ -377,7 +357,7 @@ export class CanvasRenderer {
 
     if (freeze.row > 0) {
       const y = band.height;
-      ctx.strokeStyle = "#0188fb";
+      ctx.strokeStyle = GRID_THEME.selectionBorder;
       ctx.beginPath();
       ctx.moveTo(0, y + 0.5);
       ctx.lineTo(w, y + 0.5);
@@ -385,7 +365,7 @@ export class CanvasRenderer {
     }
     if (freeze.col > 0) {
       const x = band.width;
-      ctx.strokeStyle = "#0188fb";
+      ctx.strokeStyle = GRID_THEME.selectionBorder;
       ctx.beginPath();
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, h);
@@ -398,6 +378,25 @@ export class CanvasRenderer {
   getContentSize(): { width: number; height: number } {
     return contentSize(this.rowOffsets, this.colOffsets);
   }
+}
+
+/** Luckysheet draws only right + bottom per cell (strokeStyle #dfdfdf) to avoid double lines */
+function paintDefaultCellGridLines(
+  ctx: CanvasRenderingContext2D,
+  rect: { x: number; y: number; width: number; height: number },
+): void {
+  const x0 = rect.x;
+  const y0 = rect.y;
+  const x1 = rect.x + rect.width;
+  const y1 = rect.y + rect.height;
+  ctx.strokeStyle = GRID_THEME.cellGridLine;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x1 - 0.5, y0);
+  ctx.lineTo(x1 - 0.5, y1);
+  ctx.moveTo(x0, y1 - 0.5);
+  ctx.lineTo(x1, y1 - 0.5);
+  ctx.stroke();
 }
 
 function paintCellBorders(

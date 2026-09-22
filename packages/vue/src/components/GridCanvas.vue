@@ -353,10 +353,13 @@ defineExpose({ pendingChar });
   cursor: cell;
 }
 .ls3-grid__surface {
+  grid-column: 2;
+  grid-row: 2;
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  z-index: 0;
 }
 .ls3-grid__canvas {
   display: block;

@@ -1,11 +1,16 @@
+/* Tokens aligned with Luckysheet 2.x luckysheet-core.css (cols/rows-h, selection) */
 .ls3-grid {
   --ls3-row-header-width: 46px;
   --ls3-col-header-height: 20px;
-  --ls3-header-bg: #f5f5f5;
-  --ls3-header-corner-bg: #f0f0f0;
-  --ls3-header-border: #d4d4d4;
-  --ls3-header-text: #5a5a5a;
+  /* draw.js 列/行头格 fillRect 均为 #ffffff；角块无灰底（luckysheet-left-top 仅边框） */
+  --ls3-col-header-bg: #ffffff;
+  --ls3-row-header-bg: #ffffff;
+  --ls3-header-corner-bg: #ffffff;
+  --ls3-header-border: #dfdfdf;
+  --ls3-header-border-bottom: #bbbbbb;
+  --ls3-header-text: #5e5e5e;
   --ls3-header-select: rgba(76, 76, 76, 0.1);
+  --ls3-header-select-accent: #0188fb;
 }
 
 .ls3-grid__corner {
@@ -17,7 +22,7 @@
   border-right: 1px solid var(--ls3-header-border);
   border-bottom: 1px solid var(--ls3-header-border);
   background: var(--ls3-header-corner-bg);
-  cursor: default;
+  cursor: pointer;
 }
 
 .ls3-grid__col-header {
@@ -26,8 +31,9 @@
   z-index: 2;
   position: relative;
   overflow: hidden;
-  background: var(--ls3-header-bg);
-  border-bottom: 1px solid var(--ls3-header-border);
+  color: var(--ls3-header-text);
+  background-color: var(--ls3-col-header-bg);
+  border-bottom: 1px solid var(--ls3-header-border-bottom);
 }
 
 .ls3-grid__row-header {
@@ -36,8 +42,13 @@
   z-index: 2;
   position: relative;
   overflow: hidden;
-  background: var(--ls3-header-bg);
+  color: var(--ls3-header-text);
+  background-color: var(--ls3-row-header-bg);
   border-right: 1px solid var(--ls3-header-border);
+}
+
+.ls3-grid__row-header .ls3-grid__header-track {
+  background-color: var(--ls3-row-header-bg);
 }
 
 .ls3-grid__header-track {
@@ -52,17 +63,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1;
   color: var(--ls3-header-text);
-  border-right: 1px solid var(--ls3-header-border);
   user-select: none;
   cursor: default;
+}
+
+.ls3-grid__col-header .ls3-grid__header-cell {
+  background-color: var(--ls3-col-header-bg);
+  border-right: 1px solid var(--ls3-header-border);
+  padding-top: 2px;
 }
 
 .ls3-grid__row-header .ls3-grid__header-cell {
   left: 0;
   right: 0;
-  border-right: none;
+  background-color: var(--ls3-row-header-bg);
   border-bottom: 1px solid var(--ls3-header-border);
 }
 
@@ -70,11 +87,20 @@
   position: absolute;
   background: var(--ls3-header-select);
   pointer-events: none;
+  box-sizing: border-box;
+}
+
+.ls3-grid__row-header .ls3-grid__header-select {
+  border-right: 1px solid var(--ls3-header-select-accent);
+}
+
+.ls3-grid__col-header .ls3-grid__header-select {
+  border-bottom: 1px solid var(--ls3-header-select-accent);
 }
 
 .ls3-grid__header-resize-line {
   position: absolute;
   pointer-events: none;
-  background: #0188fb;
+  background: var(--ls3-header-select-accent);
   z-index: 3;
 }
